@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { fetchJson } from "@/lib/api";
+import type { PatientList, PatientOut, ProviderList, ProviderOut } from "@/lib/types";
+
 // Provider-facing CT intake form. Stores the latest workflow response locally for
 // quick debugging; primary review screens now fetch live data from the API.
 
@@ -75,6 +78,34 @@ export default function CTIntake({
     const [message, setMessage] = useState("");
     const [resultJson, setResultJson] = useState("");
     const [resultData, setResultData] = useState<any>(null);
+    const [providers, setProviders] = useState<ProviderOut[]>([]);
+    const [patients, setPatients] = useState<PatientOut[]>([]);
+    const [directoryStatus, setDirectoryStatus] = useState<
+        "idle" | "loading" | "error"
+    >("idle");
+    const [directoryMessage, setDirectoryMessage] = useState("");
+    const [createProviderStatus, setCreateProviderStatus] = useState<
+        "idle" | "saving" | "success" | "error"
+    >("idle");
+    const [createProviderMessage, setCreateProviderMessage] = useState("");
+    const [createPatientStatus, setCreatePatientStatus] = useState<
+        "idle" | "saving" | "success" | "error"
+    >("idle");
+    const [createPatientMessage, setCreatePatientMessage] = useState("");
+    const [providerForm, setProviderForm] = useState({
+        name: "",
+        email: "",
+        npi: "",
+        specialty: "",
+        practice_name: "",
+    });
+    const [patientForm, setPatientForm] = useState({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        mrn: "",
+    });
 
     useEffect(() => {
         if (!DEMO_PASSWORD) {
@@ -100,6 +131,49 @@ export default function CTIntake({
             setProviderId(storedProvider);
         }
     }, []);
+
+    useEffect(() => {
+        if (!isUnlocked) {
+            return;
+        }
+
+        let isActive = true;
+        const loadDirectory = async () => {
+            setDirectoryStatus("loading");
+            setDirectoryMessage("");
+
+            const [providerResponse, patientResponse] = await Promise.all([
+                fetchJson<ProviderList>("/providers/?limit=200"),
+                fetchJson<PatientList>("/patients/?limit=200"),
+            ]);
+
+            if (!isActive) {
+                return;
+            }
+
+            if (providerResponse.error || patientResponse.error) {
+                setDirectoryStatus("error");
+                setDirectoryMessage(
+                    providerResponse.error ||
+                        patientResponse.error ||
+                        "Unable to load directory."
+                );
+                setProviders(providerResponse.data?.items || []);
+                setPatients(patientResponse.data?.items || []);
+                return;
+            }
+
+            setProviders(providerResponse.data?.items || []);
+            setPatients(patientResponse.data?.items || []);
+            setDirectoryStatus("idle");
+        };
+
+        loadDirectory();
+
+        return () => {
+            isActive = false;
+        };
+    }, [isUnlocked]);
 
     const handleUnlock = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -150,6 +224,140 @@ export default function CTIntake({
             }
             setDemoMode(false);
         }
+    };
+
+    const filteredPatients = useMemo(() => {
+        if (!providerId) {
+            return patients;
+        }
+        return patients.filter((patient) => patient.provider_id === providerId);
+    }, [patients, providerId]);
+
+    const refreshDirectory = async () => {
+        setDirectoryStatus("loading");
+        setDirectoryMessage("");
+
+        const [providerResponse, patientResponse] = await Promise.all([
+            fetchJson<ProviderList>("/providers/?limit=200"),
+            fetchJson<PatientList>("/patients/?limit=200"),
+        ]);
+
+        if (providerResponse.error || patientResponse.error) {
+            setDirectoryStatus("error");
+            setDirectoryMessage(
+                providerResponse.error ||
+                    patientResponse.error ||
+                    "Unable to load directory."
+            );
+            setProviders(providerResponse.data?.items || []);
+            setPatients(patientResponse.data?.items || []);
+            return;
+        }
+
+        setProviders(providerResponse.data?.items || []);
+        setPatients(patientResponse.data?.items || []);
+        setDirectoryStatus("idle");
+    };
+
+    const handleCreateProvider = async (
+        event: React.FormEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+        setCreateProviderStatus("saving");
+        setCreateProviderMessage("");
+
+        if (!providerForm.name.trim() || !providerForm.email.trim()) {
+            setCreateProviderStatus("error");
+            setCreateProviderMessage("Provider name and email are required.");
+            return;
+        }
+
+        const payload = {
+            name: providerForm.name.trim(),
+            email: providerForm.email.trim(),
+            npi: providerForm.npi.trim() || null,
+            specialty: providerForm.specialty.trim() || null,
+            practice_name: providerForm.practice_name.trim() || null,
+        };
+
+        const response = await fetchJson<ProviderOut>("/providers/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (response.error || !response.data) {
+            setCreateProviderStatus("error");
+            setCreateProviderMessage(response.error || "Unable to create provider.");
+            return;
+        }
+
+        setProviderId(response.data.id);
+        setProviderForm({
+            name: "",
+            email: "",
+            npi: "",
+            specialty: "",
+            practice_name: "",
+        });
+        setCreateProviderStatus("success");
+        setCreateProviderMessage("Provider created.");
+        refreshDirectory();
+    };
+
+    const handleCreatePatient = async (
+        event: React.FormEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+        setCreatePatientStatus("saving");
+        setCreatePatientMessage("");
+
+        if (!patientForm.first_name.trim() || !patientForm.last_name.trim()) {
+            setCreatePatientStatus("error");
+            setCreatePatientMessage("Patient first and last name are required.");
+            return;
+        }
+
+        const payload: Record<string, unknown> = {
+            first_name: patientForm.first_name.trim(),
+            last_name: patientForm.last_name.trim(),
+        };
+        if (providerId) {
+            payload.provider_id = providerId;
+        }
+        if (patientForm.email.trim()) {
+            payload.email = patientForm.email.trim();
+        }
+        if (patientForm.phone.trim()) {
+            payload.phone = patientForm.phone.trim();
+        }
+        if (patientForm.mrn.trim()) {
+            payload.mrn = patientForm.mrn.trim();
+        }
+
+        const response = await fetchJson<PatientOut>("/patients/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (response.error || !response.data) {
+            setCreatePatientStatus("error");
+            setCreatePatientMessage(response.error || "Unable to create patient.");
+            return;
+        }
+
+        setPatientId(response.data.id);
+        setPatientForm({
+            first_name: "",
+            last_name: "",
+            email: "",
+            phone: "",
+            mrn: "",
+        });
+        setCreatePatientStatus("success");
+        setCreatePatientMessage("Patient created.");
+        refreshDirectory();
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -356,6 +564,263 @@ export default function CTIntake({
             )}
 
             <section className="grid">
+                <div className="card">
+                    <h2>Provider + patient setup</h2>
+                    <p className="muted">
+                        Select existing records or create new ones before you
+                        run the CT workflow.
+                    </p>
+
+                    <div className="form-grid">
+                        <label>
+                            Existing provider
+                            <select
+                                value={providerId}
+                                onChange={(event) =>
+                                    setProviderId(event.target.value)
+                                }
+                            >
+                                <option value="">Select provider</option>
+                                {providers.map((provider) => (
+                                    <option
+                                        key={provider.id}
+                                        value={provider.id}
+                                    >
+                                        {provider.name} ({provider.email})
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            Existing patient
+                            <select
+                                value={patientId}
+                                onChange={(event) =>
+                                    setPatientId(event.target.value)
+                                }
+                            >
+                                <option value="">Select patient</option>
+                                {filteredPatients.map((patient) => (
+                                    <option key={patient.id} value={patient.id}>
+                                        {patient.first_name} {patient.last_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+
+                    <div className="actions">
+                        <button
+                            type="button"
+                            onClick={refreshDirectory}
+                            disabled={directoryStatus === "loading"}
+                        >
+                            {directoryStatus === "loading"
+                                ? "Refreshing..."
+                                : "Refresh list"}
+                        </button>
+                        <p
+                            className={`status ${
+                                directoryStatus === "error" ? "error" : ""
+                            }`}
+                        >
+                            {directoryStatus === "loading"
+                                ? "Loading directory..."
+                                : directoryMessage ||
+                                  `${providers.length} providers · ${patients.length} patients`}
+                        </p>
+                    </div>
+
+                    <div className="pill">
+                        New patients attach to the selected provider ID.
+                    </div>
+
+                    <h3>Create provider</h3>
+                    <form className="form-grid" onSubmit={handleCreateProvider}>
+                        <label>
+                            Provider name
+                            <input
+                                value={providerForm.name}
+                                onChange={(event) =>
+                                    setProviderForm((current) => ({
+                                        ...current,
+                                        name: event.target.value,
+                                    }))
+                                }
+                                placeholder="Dr. Ilya Sobol"
+                                required
+                            />
+                        </label>
+                        <label>
+                            Provider email
+                            <input
+                                type="email"
+                                value={providerForm.email}
+                                onChange={(event) =>
+                                    setProviderForm((current) => ({
+                                        ...current,
+                                        email: event.target.value,
+                                    }))
+                                }
+                                placeholder="provider@clinic.org"
+                                required
+                            />
+                        </label>
+                        <label>
+                            NPI (optional)
+                            <input
+                                value={providerForm.npi}
+                                onChange={(event) =>
+                                    setProviderForm((current) => ({
+                                        ...current,
+                                        npi: event.target.value,
+                                    }))
+                                }
+                                placeholder="1234567890"
+                            />
+                        </label>
+                        <label>
+                            Specialty (optional)
+                            <input
+                                value={providerForm.specialty}
+                                onChange={(event) =>
+                                    setProviderForm((current) => ({
+                                        ...current,
+                                        specialty: event.target.value,
+                                    }))
+                                }
+                                placeholder="Urology"
+                            />
+                        </label>
+                        <label>
+                            Practice name (optional)
+                            <input
+                                value={providerForm.practice_name}
+                                onChange={(event) =>
+                                    setProviderForm((current) => ({
+                                        ...current,
+                                        practice_name: event.target.value,
+                                    }))
+                                }
+                                placeholder="KidneyStone AI Clinic"
+                            />
+                        </label>
+                        <div className="actions">
+                            <button
+                                type="submit"
+                                disabled={createProviderStatus === "saving"}
+                            >
+                                {createProviderStatus === "saving"
+                                    ? "Creating..."
+                                    : "Create provider"}
+                            </button>
+                            <p
+                                className={`status ${
+                                    createProviderStatus === "error"
+                                        ? "error"
+                                        : createProviderStatus === "success"
+                                        ? "success"
+                                        : ""
+                                }`}
+                            >
+                                {createProviderMessage || " "}
+                            </p>
+                        </div>
+                    </form>
+
+                    <h3>Create patient</h3>
+                    <form className="form-grid" onSubmit={handleCreatePatient}>
+                        <label>
+                            First name
+                            <input
+                                value={patientForm.first_name}
+                                onChange={(event) =>
+                                    setPatientForm((current) => ({
+                                        ...current,
+                                        first_name: event.target.value,
+                                    }))
+                                }
+                                placeholder="Jamie"
+                                required
+                            />
+                        </label>
+                        <label>
+                            Last name
+                            <input
+                                value={patientForm.last_name}
+                                onChange={(event) =>
+                                    setPatientForm((current) => ({
+                                        ...current,
+                                        last_name: event.target.value,
+                                    }))
+                                }
+                                placeholder="Stone"
+                                required
+                            />
+                        </label>
+                        <label>
+                            Email (optional)
+                            <input
+                                type="email"
+                                value={patientForm.email}
+                                onChange={(event) =>
+                                    setPatientForm((current) => ({
+                                        ...current,
+                                        email: event.target.value,
+                                    }))
+                                }
+                                placeholder="patient@demo.org"
+                            />
+                        </label>
+                        <label>
+                            Phone (optional)
+                            <input
+                                value={patientForm.phone}
+                                onChange={(event) =>
+                                    setPatientForm((current) => ({
+                                        ...current,
+                                        phone: event.target.value,
+                                    }))
+                                }
+                                placeholder="+1 555 555 0123"
+                            />
+                        </label>
+                        <label>
+                            MRN (optional)
+                            <input
+                                value={patientForm.mrn}
+                                onChange={(event) =>
+                                    setPatientForm((current) => ({
+                                        ...current,
+                                        mrn: event.target.value,
+                                    }))
+                                }
+                                placeholder="DEMO-0001"
+                            />
+                        </label>
+                        <div className="actions">
+                            <button
+                                type="submit"
+                                disabled={createPatientStatus === "saving"}
+                            >
+                                {createPatientStatus === "saving"
+                                    ? "Creating..."
+                                    : "Create patient"}
+                            </button>
+                            <p
+                                className={`status ${
+                                    createPatientStatus === "error"
+                                        ? "error"
+                                        : createPatientStatus === "success"
+                                        ? "success"
+                                        : ""
+                                }`}
+                            >
+                                {createPatientMessage || " "}
+                            </p>
+                        </div>
+                    </form>
+                </div>
                 <form className="card" onSubmit={handleSubmit}>
                     <h2>CT + Labs</h2>
                     <div className="demo-toggle">

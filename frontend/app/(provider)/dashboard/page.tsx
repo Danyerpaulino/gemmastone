@@ -7,8 +7,8 @@ const safeCount = (value: number | undefined) =>
     typeof value === "number" ? value : null;
 
 export default async function ProviderDashboard() {
-    const patients = await fetchJson<PatientList>("/patients?limit=6");
-    const analyses = await fetchJson<StoneAnalysisList>("/analyses?limit=6");
+    const patients = await fetchJson<PatientList>("/patients/?limit=6");
+    const analyses = await fetchJson<StoneAnalysisList>("/analyses/?limit=6");
 
     const patientCount = safeCount(patients.data?.total);
     const analysisCount = safeCount(analyses.data?.total);

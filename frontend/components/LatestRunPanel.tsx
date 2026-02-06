@@ -20,6 +20,12 @@ export default function LatestRunPanel({
     >("idle");
     const [loadMessage, setLoadMessage] = useState("");
     const [notes, setNotes] = useState("");
+    const [modFluidTarget, setModFluidTarget] = useState("");
+    const [modLifestyle, setModLifestyle] = useState("");
+    const [modDietaryJson, setModDietaryJson] = useState("");
+    const [modMedicationsJson, setModMedicationsJson] = useState("");
+    const [modEducationJson, setModEducationJson] = useState("");
+    const [modSummary, setModSummary] = useState("");
     const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">(
         "idle"
     );
@@ -41,7 +47,7 @@ export default function LatestRunPanel({
 
             const [analysisResponse, planResponse] = await Promise.all([
                 fetchJson<StoneAnalysisList>(
-                    `/analyses?patient_id=${patientId}&limit=1`
+                    `/analyses/?patient_id=${patientId}&limit=1`
                 ),
                 fetchJson<PreventionPlanOut | null>(`/patients/${patientId}/plan`),
             ]);
@@ -78,6 +84,64 @@ export default function LatestRunPanel({
         };
     }, [patientId]);
 
+    const buildModifications = () => {
+        const modifications: Record<string, unknown> = {};
+
+        if (modFluidTarget.trim()) {
+            const value = Number(modFluidTarget);
+            if (!Number.isFinite(value) || value <= 0) {
+                throw new Error("Fluid target must be a positive number.");
+            }
+            modifications.fluid_intake_target_ml = Math.round(value);
+        }
+
+        if (modLifestyle.trim()) {
+            const items = modLifestyle
+                .split("\n")
+                .map((line) => line.trim())
+                .filter(Boolean);
+            if (items.length) {
+                modifications.lifestyle_modifications = items;
+            }
+        }
+
+        if (modDietaryJson.trim()) {
+            const parsed = JSON.parse(modDietaryJson);
+            if (!Array.isArray(parsed)) {
+                throw new Error(
+                    "Dietary recommendations must be a JSON array of objects."
+                );
+            }
+            modifications.dietary_recommendations = parsed;
+        }
+
+        if (modMedicationsJson.trim()) {
+            const parsed = JSON.parse(modMedicationsJson);
+            if (!Array.isArray(parsed)) {
+                throw new Error(
+                    "Medications must be a JSON array of objects."
+                );
+            }
+            modifications.medications_recommended = parsed;
+        }
+
+        if (modEducationJson.trim()) {
+            const parsed = JSON.parse(modEducationJson);
+            if (!Array.isArray(parsed)) {
+                throw new Error(
+                    "Education materials must be a JSON array of objects."
+                );
+            }
+            modifications.education_materials = parsed;
+        }
+
+        if (modSummary.trim()) {
+            modifications.personalized_summary = modSummary.trim();
+        }
+
+        return Object.keys(modifications).length ? modifications : null;
+    };
+
     const approvePlan = async () => {
         if (!plan?.id) {
             setStatus("error");
@@ -87,12 +151,30 @@ export default function LatestRunPanel({
         setStatus("saving");
         setMessage("");
 
+        let modifications: Record<string, unknown> | null = null;
+        try {
+            modifications = buildModifications();
+        } catch (error) {
+            setStatus("error");
+            setMessage(
+                error instanceof Error ? error.message : "Invalid modifications."
+            );
+            return;
+        }
+
+        const body: Record<string, unknown> = {
+            provider_notes: notes || null,
+        };
+        if (modifications) {
+            body.modifications = modifications;
+        }
+
         const response = await fetchJson<PreventionPlanOut>(
             `/plans/${plan.id}/approve`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ provider_notes: notes || null }),
+                body: JSON.stringify(body),
             }
         );
 
@@ -172,6 +254,84 @@ export default function LatestRunPanel({
                         value={notes}
                         onChange={(event) => setNotes(event.target.value)}
                         placeholder="Add any clinical context or adjustments."
+                    />
+                </label>
+            </div>
+
+            <h3>Plan adjustments (optional)</h3>
+            <p className="muted">
+                Only fill the fields you want to override. Submitting changes
+                creates a new plan version.
+            </p>
+            <div className="form-grid">
+                <label>
+                    Fluid target (ml/day)
+                    <input
+                        value={modFluidTarget}
+                        onChange={(event) =>
+                            setModFluidTarget(event.target.value)
+                        }
+                        placeholder="3000"
+                    />
+                </label>
+                <label>
+                    Personalized summary
+                    <input
+                        value={modSummary}
+                        onChange={(event) => setModSummary(event.target.value)}
+                        placeholder="Short patient-friendly summary"
+                    />
+                </label>
+            </div>
+            <div className="form-grid single">
+                <label>
+                    Lifestyle modifications (one per line)
+                    <textarea
+                        rows={4}
+                        value={modLifestyle}
+                        onChange={(event) =>
+                            setModLifestyle(event.target.value)
+                        }
+                        placeholder="Drink 3L water daily&#10;Limit sodium to 2,300mg"
+                    />
+                </label>
+            </div>
+            <div className="form-grid single">
+                <label>
+                    Dietary recommendations (JSON array)
+                    <textarea
+                        rows={4}
+                        value={modDietaryJson}
+                        onChange={(event) =>
+                            setModDietaryJson(event.target.value)
+                        }
+                        placeholder='[{"category":"reduce","items":[{"item":"spinach","reason":"High oxalate"}],"priority":"high"}]'
+                    />
+                </label>
+            </div>
+            <div className="form-grid single">
+                <label>
+                    Medications (JSON array)
+                    <textarea
+                        rows={3}
+                        value={modMedicationsJson}
+                        onChange={(event) =>
+                            setModMedicationsJson(event.target.value)
+                        }
+                        placeholder='[{"name":"potassium citrate","dose":"20 mEq twice daily"}]'
+                    />
+                </label>
+            </div>
+            <div className="form-grid single">
+                <label>
+                    Education materials (JSON array)
+                    <textarea
+                        rows={3}
+                        value={modEducationJson}
+                        onChange={(event) =>
+                            setModEducationJson(event.target.value)
+                        }
+                        placeholder='[{"type":"pdf","title":"Hydration Guide","url":"/materials/hydration-guide.pdf"}]'
                     />
                 </label>
             </div>

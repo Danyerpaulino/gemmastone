@@ -35,7 +35,7 @@ export default function LatestPlanPreview({
 
             const [analysisResponse, planResponse] = await Promise.all([
                 fetchJson<StoneAnalysisList>(
-                    `/analyses?patient_id=${patientId}&limit=1`
+                    `/analyses/?patient_id=${patientId}&limit=1`
                 ),
                 fetchJson<PreventionPlanOut | null>(
                     `/patients/${patientId}/plan`

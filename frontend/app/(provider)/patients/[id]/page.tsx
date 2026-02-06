@@ -11,7 +11,7 @@ export default async function PatientDetailPage({
     const { id } = await params;
     const patient = await fetchJson<PatientOut>(`/patients/${id}`);
     const analyses = await fetchJson<StoneAnalysisList>(
-        `/analyses?patient_id=${id}&limit=5`
+        `/analyses/?patient_id=${id}&limit=5`
     );
 
     const latest = analyses.data?.items?.[0];
@@ -115,6 +115,21 @@ export default async function PatientDetailPage({
                     <div className="pill">
                         Plan approval gates mock nudges and engagement.
                     </div>
+                </div>
+                <div className="card">
+                    <div className="card-header">
+                        <h2>Lab results</h2>
+                        <Link
+                            className="text-link"
+                            href={`/patients/${id}/labs`}
+                        >
+                            Upload labs
+                        </Link>
+                    </div>
+                    <p className="muted">
+                        Add crystallography or 24-hour urine results to update
+                        composition and prevention plans.
+                    </p>
                 </div>
                 <div className="card">
                     <div className="card-header">

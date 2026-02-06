@@ -25,7 +25,12 @@ def list_analyses(
     query = db.query(StoneAnalysis)
     if patient_id is not None:
         query = query.filter(StoneAnalysis.patient_id == patient_id)
-    return query.offset(offset).limit(limit).all()
+    return (
+        query.order_by(StoneAnalysis.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 def count_analyses(db: Session, patient_id=None) -> int:

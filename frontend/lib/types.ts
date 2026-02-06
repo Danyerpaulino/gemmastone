@@ -16,6 +16,21 @@ export type PatientList = {
     total: number;
 };
 
+export type ProviderOut = {
+    id: string;
+    email: string;
+    name: string;
+    npi?: string | null;
+    specialty?: string | null;
+    practice_name?: string | null;
+    created_at?: string | null;
+};
+
+export type ProviderList = {
+    items: ProviderOut[];
+    total: number;
+};
+
 export type StoneAnalysisOut = {
     id: string;
     patient_id: string;
@@ -67,6 +82,16 @@ export type ComplianceLogOut = {
 export type ComplianceLogList = {
     items: ComplianceLogOut[];
     total: number;
+};
+
+export type LabResultOut = {
+    id: string;
+    patient_id: string;
+    analysis_id?: string | null;
+    result_type: string;
+    result_date?: string | null;
+    results: Record<string, unknown>;
+    created_at?: string | null;
 };
 
 export type StoneMesh = {

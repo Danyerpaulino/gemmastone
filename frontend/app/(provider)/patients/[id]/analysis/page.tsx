@@ -12,7 +12,7 @@ export default async function PatientAnalysisPage({
 }) {
     const { id } = await params;
     const analyses = await fetchJson<StoneAnalysisList>(
-        `/analyses?patient_id=${id}&limit=5`
+        `/analyses/?patient_id=${id}&limit=5`
     );
     const latest = analyses.data?.items?.[0];
 

@@ -17,7 +17,13 @@ def get_patient(db: Session, patient_id) -> Patient | None:
 
 
 def list_patients(db: Session, offset: int = 0, limit: int = 100) -> list[Patient]:
-    return db.query(Patient).offset(offset).limit(limit).all()
+    return (
+        db.query(Patient)
+        .order_by(Patient.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 def count_patients(db: Session) -> int:

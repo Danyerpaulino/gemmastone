@@ -4,7 +4,7 @@ import { fetchJson } from "@/lib/api";
 import type { PatientList } from "@/lib/types";
 
 export default async function PatientsPage() {
-    const patients = await fetchJson<PatientList>("/patients?limit=50");
+    const patients = await fetchJson<PatientList>("/patients/?limit=50");
 
     return (
         <section className="stack">
