@@ -152,11 +152,18 @@ export default function LatestPlanPreview({
             ) : null}
             {plan.education_materials?.length ? (
                 <div className="chip-row">
-                    {plan.education_materials.map((item, index) => (
-                        <span key={`${item.title}-${index}`} className="chip">
-                            {item.title || "Education"}
-                        </span>
-                    ))}
+                    {plan.education_materials.map((item, index) => {
+                        const title =
+                            typeof item.title === "string" && item.title.trim()
+                                ? item.title
+                                : "Education";
+
+                        return (
+                            <span key={`${title}-${index}`} className="chip">
+                                {title}
+                            </span>
+                        );
+                    })}
                 </div>
             ) : null}
         </div>
