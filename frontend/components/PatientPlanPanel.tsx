@@ -114,7 +114,9 @@ export default function PatientPlanPanel({
                 <div className="actions">
                     <button
                         type="button"
-                        onClick={loadPlan}
+                        onClick={() => {
+                            loadPlan();
+                        }}
                         disabled={status === "loading"}
                     >
                         {status === "loading"
