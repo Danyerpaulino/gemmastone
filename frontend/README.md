@@ -28,6 +28,7 @@ Create a `frontend/.env.local` with:
 NEXT_PUBLIC_API_URL=http://localhost:8080/api
 NEXT_PUBLIC_API_TOKEN=your-shared-api-token
 NEXT_PUBLIC_DEMO_PASSWORD=your-shared-demo-code
+NEXT_PUBLIC_USE_SIGNED_UPLOADS=false
 ```
 
 If `NEXT_PUBLIC_DEMO_PASSWORD` is set, the UI prompts for the shared access code before
