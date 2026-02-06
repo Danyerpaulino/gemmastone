@@ -589,6 +589,23 @@ button:disabled {
     color: var(--muted);
 }
 
+.summary-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.summary-heading {
+    margin: 0;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.summary-body {
+    margin: 0;
+    line-height: 1.55;
+}
+
 .link-stack {
     display: flex;
     flex-direction: column;

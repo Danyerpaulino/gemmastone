@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { useDemoGate } from "@/components/DemoGate";
 import { fetchJson } from "@/lib/api";
 import type { PatientList, PatientOut, ProviderList, ProviderOut } from "@/lib/types";
 
@@ -16,7 +17,6 @@ const USE_SIGNED_UPLOADS =
     (process.env.NEXT_PUBLIC_USE_SIGNED_UPLOADS ??
         (API_URL.includes("localhost") ? "false" : "true")
     ).toLowerCase() === "true";
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD || "";
 const DEMO_PROVIDER_ID = process.env.NEXT_PUBLIC_DEMO_PROVIDER_ID || "";
 const DEMO_PATIENT_ID = process.env.NEXT_PUBLIC_DEMO_PATIENT_ID || "";
 
@@ -52,14 +52,7 @@ export default function CTIntake({
     subtitle?: string;
     hideHero?: boolean;
 }) {
-    const accessKey = "kidneystone_demo_access_v1";
-    const accessToken = useMemo(
-        () => (DEMO_PASSWORD ? `v1:${btoa(DEMO_PASSWORD)}` : ""),
-        [DEMO_PASSWORD]
-    );
-    const [isUnlocked, setIsUnlocked] = useState(!DEMO_PASSWORD);
-    const [accessInput, setAccessInput] = useState("");
-    const [accessError, setAccessError] = useState("");
+    const { requiresGate, lock } = useDemoGate();
     const [providerId, setProviderId] = useState("");
     const [patientId, setPatientId] = useState("");
     const [ctFile, setCtFile] = useState<File | null>(null);
@@ -108,17 +101,6 @@ export default function CTIntake({
     });
 
     useEffect(() => {
-        if (!DEMO_PASSWORD) {
-            setIsUnlocked(true);
-            return;
-        }
-        const saved = window.localStorage.getItem(accessKey);
-        if (saved === accessToken) {
-            setIsUnlocked(true);
-        }
-    }, [accessKey, accessToken]);
-
-    useEffect(() => {
         if (typeof window === "undefined") {
             return;
         }
@@ -133,10 +115,6 @@ export default function CTIntake({
     }, []);
 
     useEffect(() => {
-        if (!isUnlocked) {
-            return;
-        }
-
         let isActive = true;
         const loadDirectory = async () => {
             setDirectoryStatus("loading");
@@ -173,29 +151,7 @@ export default function CTIntake({
         return () => {
             isActive = false;
         };
-    }, [isUnlocked]);
-
-    const handleUnlock = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!DEMO_PASSWORD) {
-            setIsUnlocked(true);
-            return;
-        }
-        if (accessInput.trim() === DEMO_PASSWORD) {
-            window.localStorage.setItem(accessKey, accessToken);
-            setIsUnlocked(true);
-            setAccessError("");
-        } else {
-            setAccessError("Incorrect access code. Try again.");
-        }
-    };
-
-    const handleLock = () => {
-        window.localStorage.removeItem(accessKey);
-        setIsUnlocked(false);
-        setAccessInput("");
-        setAccessError("");
-    };
+    }, []);
 
     const toggleDemoMode = () => {
         if (!demoMode) {
@@ -503,37 +459,6 @@ export default function CTIntake({
         }
     };
 
-    if (DEMO_PASSWORD && !isUnlocked) {
-        return (
-            <section className="card auth-card">
-                <p className="eyebrow">Demo access</p>
-                <h1>Enter the shared access code</h1>
-                <p className="lead">
-                    This public demo is gated for the competition review team.
-                    Ask the project owner for the access code.
-                </p>
-                <form className="auth-form" onSubmit={handleUnlock}>
-                    <label>
-                        Access code
-                        <input
-                            type="password"
-                            value={accessInput}
-                            onChange={(event) =>
-                                setAccessInput(event.target.value)
-                            }
-                            placeholder="Shared demo code"
-                            required
-                        />
-                    </label>
-                    <div className="actions auth-actions">
-                        <button type="submit">Unlock</button>
-                        <p className="status error">{accessError || " "}</p>
-                    </div>
-                </form>
-            </section>
-        );
-    }
-
     return (
         <>
             {!hideHero && (
@@ -550,11 +475,11 @@ export default function CTIntake({
                             <li>Paste Provider + Patient IDs.</li>
                             <li>Upload a CT and optional labs.</li>
                         </ol>
-                        {DEMO_PASSWORD ? (
+                        {requiresGate ? (
                             <button
                                 type="button"
                                 className="ghost"
-                                onClick={handleLock}
+                                onClick={lock}
                             >
                                 Lock demo
                             </button>

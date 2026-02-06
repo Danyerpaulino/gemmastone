@@ -107,11 +107,7 @@ class MedGemmaClient:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
-        if isinstance(data, dict) and "text" in data:
-            return data["text"]
-        if isinstance(data, str):
-            return data
-        return json.dumps(data)
+        return self._extract_text_output(data)
 
     async def _vertex_analyze(self, prompt: str, png_slices: list[bytes], modality: str) -> dict:
         """Call our custom MedGemma container on Vertex AI."""
@@ -132,16 +128,7 @@ class MedGemmaClient:
         payload = {"prompt": prompt, "images": [], "modality": "text"}
         try:
             response = await self._vertex_raw_predict(payload)
-            if isinstance(response, dict):
-                # Try to extract text from various possible response formats
-                if "text" in response:
-                    return response["text"]
-                if "result" in response and isinstance(response["result"], dict):
-                    if "raw_output" in response["result"]:
-                        return response["result"]["raw_output"]
-            if isinstance(response, str):
-                return response
-            return json.dumps(response)
+            return self._extract_text_output(response)
         except Exception:
             # Fallback for text generation
             return "Stay hydrated and follow your prevention plan for best results."
@@ -192,11 +179,7 @@ class MedGemmaClient:
 
     async def _local_generate(self, prompt: str) -> str:
         output = await self._local_generate_with_images(prompt, [])
-        if isinstance(output, str):
-            return output
-        if isinstance(output, dict) and "text" in output:
-            return output["text"]
-        return json.dumps(output)
+        return self._extract_text_output(output)
 
     async def _local_generate_with_images(
         self, prompt: str, png_slices: list[bytes], modality: str | None = None
@@ -299,6 +282,42 @@ class MedGemmaClient:
                     except json.JSONDecodeError:
                         pass
         raise ValueError("Unable to parse MedGemma analysis output")
+
+    def _extract_text_output(self, response: Any) -> str:
+        if response is None:
+            return ""
+        if isinstance(response, bytes):
+            try:
+                decoded = response.decode("utf-8")
+            except Exception:
+                return str(response)
+            return self._extract_text_output(decoded)
+        if isinstance(response, str):
+            text = response.strip()
+            if text.startswith("{") or text.startswith("["):
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    return response
+                return self._extract_text_output(parsed)
+            return response
+        if isinstance(response, dict):
+            if "text" in response and isinstance(response["text"], str):
+                return response["text"]
+            if "raw_output" in response and isinstance(response["raw_output"], str):
+                return response["raw_output"]
+            if "result" in response:
+                return self._extract_text_output(response["result"])
+            if "output" in response:
+                return self._extract_text_output(response["output"])
+            if "predictions" in response:
+                return self._extract_text_output(response["predictions"])
+            return json.dumps(response)
+        if isinstance(response, list):
+            if not response:
+                return ""
+            return self._extract_text_output(response[0])
+        return json.dumps(response)
 
     def _mock_analysis(self) -> dict:
         return {

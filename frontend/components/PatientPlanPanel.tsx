@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchJson } from "@/lib/api";
+import { formatMedgemmaSections } from "@/lib/medgemma";
 import type { PreventionPlanOut } from "@/lib/types";
 
 const STORAGE_KEY = "kidneystone_last_patient_id";
@@ -10,9 +11,15 @@ const STORAGE_KEY = "kidneystone_last_patient_id";
 export default function PatientPlanPanel({
     patientId: patientIdProp,
     onPatientIdChange,
+    showPatientInput = true,
+    autoLoad = false,
+    showSummary = true,
 }: {
     patientId?: string;
     onPatientIdChange?: (value: string) => void;
+    showPatientInput?: boolean;
+    autoLoad?: boolean;
+    showSummary?: boolean;
 } = {}) {
     const isControlled = patientIdProp !== undefined;
     const [patientId, setPatientId] = useState(patientIdProp ?? "");
@@ -37,10 +44,16 @@ export default function PatientPlanPanel({
         }
     }, [isControlled, onPatientIdChange]);
 
-    const loadPlan = async () => {
+    const loadPlan = async (options: { silentEmpty?: boolean } = {}) => {
         if (!patientId.trim()) {
-            setStatus("error");
-            setMessage("Enter a patient ID to load the plan.");
+            if (!options.silentEmpty) {
+                setStatus("error");
+                setMessage(
+                    showPatientInput
+                        ? "Enter a patient ID to load the plan."
+                        : "Select a patient to load the plan."
+                );
+            }
             return;
         }
         setStatus("loading");
@@ -61,6 +74,20 @@ export default function PatientPlanPanel({
         onPatientIdChange?.(patientId);
     };
 
+    useEffect(() => {
+        if (!autoLoad) {
+            return;
+        }
+        if (!patientId.trim()) {
+            setPlan(null);
+            setStatus("idle");
+            setMessage("");
+            return;
+        }
+        loadPlan({ silentEmpty: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoLoad, patientId]);
+
     return (
         <div className="card">
             <div className="card-header">
@@ -68,27 +95,33 @@ export default function PatientPlanPanel({
                 <span className="badge">Live</span>
             </div>
             <div className="form-grid">
-                <label>
-                    Patient ID
-                    <input
-                        value={patientId}
-                        onChange={(event) => {
-                            const value = event.target.value;
-                            if (!isControlled) {
-                                setPatientId(value);
-                            }
-                            onPatientIdChange?.(value);
-                        }}
-                        placeholder="UUID"
-                    />
-                </label>
+                {showPatientInput ? (
+                    <label>
+                        Patient ID
+                        <input
+                            value={patientId}
+                            onChange={(event) => {
+                                const value = event.target.value;
+                                if (!isControlled) {
+                                    setPatientId(value);
+                                }
+                                onPatientIdChange?.(value);
+                            }}
+                            placeholder="UUID"
+                        />
+                    </label>
+                ) : null}
                 <div className="actions">
                     <button
                         type="button"
                         onClick={loadPlan}
                         disabled={status === "loading"}
                     >
-                        {status === "loading" ? "Loading..." : "Load plan"}
+                        {status === "loading"
+                            ? "Loading..."
+                            : showPatientInput
+                            ? "Load plan"
+                            : "Refresh plan"}
                     </button>
                     <p className={`status ${status}`}>
                         {message || "Ready."}
@@ -123,9 +156,18 @@ export default function PatientPlanPanel({
                         <span>Lifestyle</span>
                         <p>{plan.lifestyle_modifications?.length || 0} items</p>
                     </div>
-                    {plan.personalized_summary ? (
-                        <div className="quote-block">
-                            <p>{plan.personalized_summary}</p>
+                    {showSummary && plan.personalized_summary ? (
+                        <div className="quote-block summary-block">
+                            {formatMedgemmaSections(
+                                plan.personalized_summary
+                            ).map((section, index) => (
+                                <p
+                                    key={`${section.kind}-${index}`}
+                                    className={`summary-${section.kind}`}
+                                >
+                                    {section.text}
+                                </p>
+                            ))}
                         </div>
                     ) : null}
                 </div>

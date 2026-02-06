@@ -1,5 +1,7 @@
 import "./globals.css";
 
+import DemoGate from "@/components/DemoGate";
+
 export const metadata = {
     title: "KidneyStone AI",
     description: "Provider portal",
@@ -12,7 +14,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body>{children}</body>
+            <body>
+                <DemoGate>{children}</DemoGate>
+            </body>
         </html>
     );
 }

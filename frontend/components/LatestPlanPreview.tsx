@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchJson } from "@/lib/api";
+import { formatMedgemmaSections } from "@/lib/medgemma";
 import type { PreventionPlanOut, StoneAnalysisList, StoneAnalysisOut } from "@/lib/types";
 
 // Live plan preview fetched from the API to avoid stale browser-local snapshots.
@@ -79,7 +80,7 @@ export default function LatestPlanPreview({
             <div className="card">
                 <h2>Plan summary</h2>
                 <p className="empty">
-                    Enter a patient ID to load the latest prevention plan.
+                    Select a patient to load the latest prevention plan.
                 </p>
             </div>
         );
@@ -114,6 +115,19 @@ export default function LatestPlanPreview({
         );
     }
 
+    const medications = (plan.medications_recommended || [])
+        .map((med) => {
+            if (!med || typeof med !== "object") {
+                return "";
+            }
+            const name = (med as { name?: unknown }).name;
+            return typeof name === "string" ? name : "";
+        })
+        .filter(Boolean);
+    const lifestyle = (plan.lifestyle_modifications || []).filter(
+        (item) => typeof item === "string" && item.trim()
+    );
+
     return (
         <div className="card">
             <div className="card-header">
@@ -145,9 +159,36 @@ export default function LatestPlanPreview({
                 </div>
             </div>
             <div className="pill">Live view of the latest approved plan.</div>
+            <div className="preview">
+                <div className="preview-block">
+                    <span>Medications</span>
+                    <p>
+                        {medications.length
+                            ? medications.join(", ")
+                            : "None"}
+                    </p>
+                </div>
+                <div className="preview-block">
+                    <span>Lifestyle</span>
+                    <p>
+                        {lifestyle.length
+                            ? lifestyle.join(", ")
+                            : "None"}
+                    </p>
+                </div>
+            </div>
             {plan.personalized_summary ? (
-                <div className="quote-block">
-                    <p>{plan.personalized_summary}</p>
+                <div className="quote-block summary-block">
+                    {formatMedgemmaSections(
+                        plan.personalized_summary
+                    ).map((section, index) => (
+                        <p
+                            key={`${section.kind}-${index}`}
+                            className={`summary-${section.kind}`}
+                        >
+                            {section.text}
+                        </p>
+                    ))}
                 </div>
             ) : null}
             {plan.education_materials?.length ? (
