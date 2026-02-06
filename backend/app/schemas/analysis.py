@@ -18,6 +18,8 @@ class StoneAnalysisBase(BaseModel):
     predicted_composition: str | None = None
     composition_confidence: float | None = None
     stone_3d_model: bytes | None = None
+    total_stone_burden_mm3: float | None = None
+    hydronephrosis_level: str | None = None
 
     treatment_recommendation: str | None = None
     treatment_rationale: str | None = None
@@ -34,7 +36,39 @@ class StoneAnalysisCreate(StoneAnalysisBase):
     pass
 
 
+class StoneAnalysisPublicBase(BaseModel):
+    patient_id: UUID
+    provider_id: UUID
+
+    ct_scan_path: str | None = None
+    ct_scan_date: date | None = None
+
+    stones_detected: list[dict[str, Any]] = Field(default_factory=list)
+    predicted_composition: str | None = None
+    composition_confidence: float | None = None
+    total_stone_burden_mm3: float | None = None
+    hydronephrosis_level: str | None = None
+
+    treatment_recommendation: str | None = None
+    treatment_rationale: str | None = None
+    urgency_level: str | None = None
+
+    workflow_state: dict[str, Any] | None = None
+
+    provider_approved: bool | None = None
+    approved_at: datetime | None = None
+    provider_notes: str | None = None
+
+
 class StoneAnalysisOut(StoneAnalysisBase):
+    id: UUID
+    created_at: datetime | None = None
+    lab_results: list[LabResultOut] | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StoneAnalysisPublic(StoneAnalysisPublicBase):
     id: UUID
     created_at: datetime | None = None
     lab_results: list[LabResultOut] | None = None
@@ -44,4 +78,9 @@ class StoneAnalysisOut(StoneAnalysisBase):
 
 class StoneAnalysisList(BaseModel):
     items: list[StoneAnalysisOut]
+    total: int
+
+
+class StoneAnalysisPublicList(BaseModel):
+    items: list[StoneAnalysisPublic]
     total: int

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.db.models import Nudge, Patient, PatientInteraction, PreventionPlan
+from app.db.models import ComplianceLog, Nudge, Patient, PatientInteraction, PreventionPlan
 from app.db.session import get_db
 from app.services.messaging_service import MessagingService
 
@@ -82,6 +82,8 @@ async def comms_sms_webhook(
         nudge.response = text
         nudge.response_at = datetime.utcnow()
 
+    _record_compliance_response(db, patient, nudge, text)
+
     db.commit()
     return {"status": "ok"}
 
@@ -132,6 +134,64 @@ async def comms_voice_gather(
             content=str(digits) if digits is not None else None,
         )
         db.add(interaction)
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        _record_compliance_response(db, patient, None, str(digits) if digits is not None else None)
         db.commit()
 
     return {"status": "ok"}
+
+
+def _record_compliance_response(
+    db: Session,
+    patient: Patient | None,
+    nudge: Nudge | None,
+    text: str | None,
+) -> None:
+    if not patient or not text:
+        return
+
+    response = _parse_yes_no(text)
+    if response is None:
+        return
+
+    plan = (
+        db.query(PreventionPlan)
+        .filter(PreventionPlan.patient_id == patient.id)
+        .order_by(PreventionPlan.created_at.desc())
+        .first()
+    )
+    fluid_goal = plan.fluid_intake_target_ml if plan and plan.fluid_intake_target_ml else None
+
+    log_date = datetime.utcnow().date()
+    log = (
+        db.query(ComplianceLog)
+        .filter(ComplianceLog.patient_id == patient.id, ComplianceLog.log_date == log_date)
+        .first()
+    )
+    if not log:
+        log = ComplianceLog(patient_id=patient.id, log_date=log_date)
+        db.add(log)
+
+    template = (nudge.template or "") if nudge else ""
+    message = (nudge.message_content or "") if nudge else ""
+    hint = f"{template} {message}".lower()
+
+    if any(token in hint for token in ("hydration", "water", "fluid")):
+        if fluid_goal is not None:
+            log.fluid_intake_ml = fluid_goal if response else 0
+    elif any(token in hint for token in ("medication", "tamsulosin")):
+        log.medication_taken = response
+    else:
+        log.dietary_compliance_score = 1.0 if response else 0.0
+
+    log.notes = f"Auto logged from response: {text}"
+    db.add(log)
+
+
+def _parse_yes_no(text: str) -> bool | None:
+    value = text.strip().lower()
+    if value in {"1", "yes", "y", "yeah", "yep"}:
+        return True
+    if value in {"2", "no", "n", "nope"}:
+        return False
+    return None

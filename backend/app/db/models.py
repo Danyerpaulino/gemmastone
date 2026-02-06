@@ -63,6 +63,8 @@ class StoneAnalysis(Base):
     predicted_composition = Column(String(50))
     composition_confidence = Column(Float)
     stone_3d_model = Column(LargeBinary)
+    total_stone_burden_mm3 = Column(Float)
+    hydronephrosis_level = Column(String(20))
 
     treatment_recommendation = Column(String(50))
     treatment_rationale = Column(Text)

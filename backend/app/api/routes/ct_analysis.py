@@ -1,6 +1,8 @@
 from datetime import date, datetime
 import json
 from pathlib import Path
+import tempfile
+import shutil
 from uuid import UUID, uuid4
 import zipfile
 
@@ -13,9 +15,14 @@ from app.crud import nudge as nudge_crud
 from app.crud import prevention_plan as plan_crud
 from app.db.models import Patient, Provider
 from app.db.session import get_db
-from app.schemas.analysis import StoneAnalysisCreate, StoneAnalysisOut
+from app.schemas.analysis import StoneAnalysisCreate, StoneAnalysisPublic
 from app.schemas.lab_result import LabResultCreate, LabResultOut, LabResultUpdate
-from app.schemas.ct_analysis import CTAnalysisResponse
+from app.schemas.ct_analysis import (
+    CTAnalysisResponse,
+    CTAnalyzeUriRequest,
+    CTSignedUploadRequest,
+    CTSignedUploadResponse,
+)
 from app.schemas.plan import (
     NudgeCampaignCreate,
     NudgeCreate,
@@ -25,6 +32,7 @@ from app.schemas.plan import (
     PreventionPlanOut,
 )
 from app.services.lab_validation import validate_lab_results
+from app.services.storage import ObjectStorage
 from app.workflows.kidney_stone import build_workflow
 
 router = APIRouter()
@@ -47,19 +55,8 @@ async def analyze_ct(
     if not provider:
         raise HTTPException(status_code=400, detail="Provider does not exist")
 
-    upload_root = Path(__file__).resolve().parents[3] / "data" / "ct_scans"
-    upload_root.mkdir(parents=True, exist_ok=True)
-    scan_dir = upload_root / uuid4().hex
-    scan_dir.mkdir(parents=True, exist_ok=True)
-
-    filename = file.filename or "ct_scan"
-    saved_path = scan_dir / filename
-    contents = await file.read()
-    saved_path.write_bytes(contents)
-
-    if filename.lower().endswith(".zip"):
-        with zipfile.ZipFile(saved_path, "r") as archive:
-            archive.extractall(scan_dir)
+    storage = ObjectStorage()
+    stored = storage.upload(file)
 
     explicit_crystallography = _parse_json_field(
         crystallography_results, "crystallography_results"
@@ -85,34 +82,169 @@ async def analyze_ct(
         if urine_record:
             db_urine = urine_record.results
 
-    initial_state = {
-        "patient_id": str(patient_id),
-        "provider_id": str(provider_id),
-        "ct_scan_path": str(scan_dir),
-        "crystallography_results": (
-            explicit_crystallography if explicit_crystallography is not None else db_crystallography
-        ),
-        "urine_24hr_results": explicit_urine if explicit_urine is not None else db_urine,
-    }
+    return await _run_analysis(
+        db=db,
+        patient_id=patient_id,
+        provider_id=provider_id,
+        stored=stored,
+        storage=storage,
+        explicit_crystallography=explicit_crystallography,
+        explicit_urine=explicit_urine,
+        db_crystallography=db_crystallography,
+        db_urine=db_urine,
+        crystallography_record=crystallography_record,
+        urine_record=urine_record,
+    )
 
-    workflow = build_workflow()
+
+@router.post("/sign-upload", response_model=CTSignedUploadResponse)
+async def sign_ct_upload(
+    payload: CTSignedUploadRequest,
+) -> CTSignedUploadResponse:
+    storage = ObjectStorage(mode="gcs")
     try:
-        state = await workflow.ainvoke(initial_state)
+        signed = storage.sign_upload(
+            filename=payload.filename,
+            content_type=payload.content_type,
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Workflow failed: {exc}") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CTSignedUploadResponse(
+        upload_url=signed.upload_url,
+        gcs_uri=signed.gcs_uri,
+        headers=signed.headers,
+        expires_in=signed.expires_in,
+    )
+
+
+@router.post("/analyze-uri", response_model=CTAnalysisResponse)
+async def analyze_ct_uri(
+    payload: CTAnalyzeUriRequest,
+    db: Session = Depends(get_db),
+) -> CTAnalysisResponse:
+    patient = db.query(Patient).filter(Patient.id == payload.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=400, detail="Patient does not exist")
+
+    provider = db.query(Provider).filter(Provider.id == payload.provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=400, detail="Provider does not exist")
+
+    storage = ObjectStorage(mode="gcs")
+    try:
+        stored = storage.from_gcs_uri(payload.gcs_uri)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    explicit_crystallography = payload.crystallography_results
+    explicit_urine = payload.urine_24hr_results
+    if explicit_crystallography is not None:
+        _validate_lab_payload("crystallography", explicit_crystallography)
+    if explicit_urine is not None:
+        _validate_lab_payload("urine_24hr", explicit_urine)
+
+    db_crystallography = None
+    db_urine = None
+    crystallography_record = None
+    urine_record = None
+    if explicit_crystallography is None:
+        crystallography_record = lab_crud.get_latest_lab_result(
+            db, payload.patient_id, result_type="crystallography"
+        )
+        if crystallography_record:
+            db_crystallography = crystallography_record.results
+    if explicit_urine is None:
+        urine_record = lab_crud.get_latest_lab_result(
+            db, payload.patient_id, result_type="urine_24hr"
+        )
+        if urine_record:
+            db_urine = urine_record.results
+
+    return await _run_analysis(
+        db=db,
+        patient_id=payload.patient_id,
+        provider_id=payload.provider_id,
+        stored=stored,
+        storage=storage,
+        explicit_crystallography=explicit_crystallography,
+        explicit_urine=explicit_urine,
+        db_crystallography=db_crystallography,
+        db_urine=db_urine,
+        crystallography_record=crystallography_record,
+        urine_record=urine_record,
+    )
+
+
+def _serialize_state(value):
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (bytes, bytearray)):
+        # Avoid storing large binaries in workflow_state; keep a lightweight marker instead.
+        return {"_binary": True, "size_bytes": len(value)}
+    if isinstance(value, dict):
+        return {k: _serialize_state(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_serialize_state(v) for v in value]
+    return value
+
+
+async def _run_analysis(
+    *,
+    db: Session,
+    patient_id: UUID,
+    provider_id: UUID,
+    stored,
+    storage: ObjectStorage,
+    explicit_crystallography: dict | None,
+    explicit_urine: dict | None,
+    db_crystallography: dict | None,
+    db_urine: dict | None,
+    crystallography_record,
+    urine_record,
+) -> CTAnalysisResponse:
+    workflow = build_workflow()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        local_file = storage.download_to_path(stored, tmp_path / stored.filename)
+        ct_path = _prepare_ct_payload(local_file, tmp_path)
+
+        initial_state = {
+            "patient_id": str(patient_id),
+            "provider_id": str(provider_id),
+            "ct_scan_path": stored.uri,
+            "ct_scan_local_path": str(ct_path),
+            "crystallography_results": (
+                explicit_crystallography
+                if explicit_crystallography is not None
+                else db_crystallography
+            ),
+            "urine_24hr_results": explicit_urine if explicit_urine is not None else db_urine,
+        }
+
+        try:
+            state = await workflow.ainvoke(initial_state)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Workflow failed: {exc}") from exc
+
+    state_for_storage = dict(state)
+    state_for_storage.pop("ct_scan_local_path", None)
 
     analysis_payload = StoneAnalysisCreate(
         patient_id=patient_id,
         provider_id=provider_id,
-        ct_scan_path=str(scan_dir),
+        ct_scan_path=stored.uri,
         ct_scan_date=date.today(),
         stones_detected=state.get("stones_detected", []),
         predicted_composition=state.get("predicted_composition"),
         composition_confidence=state.get("composition_confidence"),
+        stone_3d_model=state.get("stone_3d_model"),
+        total_stone_burden_mm3=state.get("total_stone_burden_mm3"),
+        hydronephrosis_level=state.get("hydronephrosis_level"),
         treatment_recommendation=state.get("treatment_recommendation"),
         treatment_rationale=state.get("treatment_rationale"),
         urgency_level=state.get("urgency_level"),
-        workflow_state=_serialize_state(state),
+        workflow_state=_serialize_state(state_for_storage),
     )
     analysis = analysis_crud.create_analysis(db, analysis_payload)
 
@@ -169,7 +301,11 @@ async def analyze_ct(
     campaign = None
     nudges: list = []
     if plan and state.get("nudge_schedule"):
-        campaign_payload = NudgeCampaignCreate(patient_id=patient_id, plan_id=plan.id)
+        campaign_payload = NudgeCampaignCreate(
+            patient_id=patient_id,
+            plan_id=plan.id,
+            status="pending_approval",
+        )
         campaign = nudge_crud.create_campaign(db, campaign_payload)
         nudge_payloads = []
         for nudge in state.get("nudge_schedule", []):
@@ -181,13 +317,13 @@ async def analyze_ct(
                     channel=nudge["channel"],
                     template=nudge.get("template"),
                     message_content=nudge.get("message"),
-                    status="scheduled",
+                    status="pending_approval",
                 )
             )
         nudges = nudge_crud.create_nudges(db, nudge_payloads)
 
     labs = lab_crud.list_lab_results(db, analysis_id=analysis.id, limit=500)
-    analysis_out = StoneAnalysisOut.model_validate(analysis).model_copy(
+    analysis_out = StoneAnalysisPublic.model_validate(analysis).model_copy(
         update={"lab_results": [LabResultOut.model_validate(lab) for lab in labs]}
     )
 
@@ -196,18 +332,38 @@ async def analyze_ct(
         prevention_plan=PreventionPlanOut.model_validate(plan) if plan else None,
         nudge_campaign=NudgeCampaignOut.model_validate(campaign) if campaign else None,
         nudges=[NudgeOut.model_validate(n) for n in nudges] if nudges else [],
-        workflow_state=_serialize_state(state),
+        workflow_state=_serialize_state(state_for_storage),
     )
 
 
-def _serialize_state(value):
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {k: _serialize_state(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_serialize_state(v) for v in value]
-    return value
+def _prepare_ct_payload(upload_path: Path, workspace: Path) -> Path:
+    if zipfile.is_zipfile(upload_path):
+        extract_dir = workspace / uuid4().hex
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        _safe_extract_zip(upload_path, extract_dir)
+        return extract_dir
+    return upload_path
+
+
+def _safe_extract_zip(zip_path: Path, target_dir: Path) -> None:
+    with zipfile.ZipFile(zip_path, "r") as archive:
+        for member in archive.infolist():
+            if member.is_dir():
+                continue
+            member_path = target_dir / member.filename
+            if not _is_within_directory(target_dir, member_path):
+                raise HTTPException(status_code=400, detail="Invalid ZIP contents.")
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as src, member_path.open("wb") as dest:
+                shutil.copyfileobj(src, dest)
+
+
+def _is_within_directory(base_dir: Path, target: Path) -> bool:
+    try:
+        base = base_dir.resolve()
+        return base in target.resolve().parents or target.resolve() == base
+    except FileNotFoundError:
+        return False
 
 
 def _parse_json_field(raw_value: str | None, label: str) -> dict | None:

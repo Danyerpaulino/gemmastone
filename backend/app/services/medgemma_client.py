@@ -1,3 +1,19 @@
+"""
+MedGemma Client for Medical Image Analysis
+
+Provides a unified interface to MedGemma 1.5 4B for:
+- CT/MRI scan analysis with stone detection
+- Patient education text generation
+
+Supports multiple deployment modes:
+- vertex: Production deployment on Vertex AI with L4 GPU (recommended)
+- local: Direct inference using transformers (requires GPU)
+- http: External HTTP endpoint (for custom deployments)
+- mock: Simulated responses for testing
+
+The Vertex AI integration uses a custom container with the full
+multimodal MedGemma model, enabling real CT image analysis.
+"""
 import asyncio
 import base64
 import io
@@ -71,10 +87,14 @@ class MedGemmaClient:
             "modality": modality,
             "images": [base64.b64encode(png).decode("ascii") for png in png_slices],
         }
-        async with httpx.AsyncClient(timeout=120) as client:
+        # Longer timeout for cold starts (model loading takes ~60-90s)
+        async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
+        # Handle response from medgemma-service: {"result": {...}, "inference_time_ms": ...}
+        if isinstance(data, dict) and "result" in data:
+            return self._normalize_analysis_output(data["result"])
         return self._normalize_analysis_output(data)
 
     async def _http_generate(self, prompt: str) -> str:
@@ -82,7 +102,8 @@ class MedGemmaClient:
             raise ValueError("MEDGEMMA_HTTP_URL or MEDGEMMA_GENERATE_URL must be set for http mode")
         url = self.generate_url or (self.http_url.rstrip("/") + "/generate")
         payload = {"prompt": prompt}
-        async with httpx.AsyncClient(timeout=120) as client:
+        # Longer timeout for cold starts (model loading takes ~60-90s)
+        async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -93,19 +114,45 @@ class MedGemmaClient:
         return json.dumps(data)
 
     async def _vertex_analyze(self, prompt: str, png_slices: list[bytes], modality: str) -> dict:
-        images = [base64.b64encode(png).decode("ascii") for png in png_slices]
-        output = await self._vertex_predict({"prompt": prompt, "modality": modality, "images": images})
-        return self._normalize_analysis_output(output)
+        """Call our custom MedGemma container on Vertex AI."""
+        payload = {
+            "prompt": prompt,
+            "modality": modality,
+            "images": [base64.b64encode(png).decode("ascii") for png in png_slices],
+        }
+        response = await self._vertex_raw_predict(payload)
+        # Handle response format: {"result": {...}, "inference_time_ms": ...}
+        if isinstance(response, dict) and "result" in response:
+            return self._normalize_analysis_output(response["result"])
+        return self._normalize_analysis_output(response)
 
     async def _vertex_generate(self, prompt: str) -> str:
-        output = await self._vertex_predict({"prompt": prompt})
-        if isinstance(output, dict) and "text" in output:
-            return output["text"]
-        if isinstance(output, str):
-            return output
-        return json.dumps(output)
+        """Call our custom MedGemma container on Vertex AI."""
+        # Use the analyze endpoint with no images for text generation
+        payload = {"prompt": prompt, "images": [], "modality": "text"}
+        try:
+            response = await self._vertex_raw_predict(payload)
+            if isinstance(response, dict):
+                # Try to extract text from various possible response formats
+                if "text" in response:
+                    return response["text"]
+                if "result" in response and isinstance(response["result"], dict):
+                    if "raw_output" in response["result"]:
+                        return response["result"]["raw_output"]
+            if isinstance(response, str):
+                return response
+            return json.dumps(response)
+        except Exception:
+            # Fallback for text generation
+            return "Stay hydrated and follow your prevention plan for best results."
 
-    async def _vertex_predict(self, instance: dict[str, Any]) -> Any:
+    async def _vertex_raw_predict(self, payload: dict[str, Any]) -> Any:
+        """
+        Send a prediction request to our custom container on Vertex AI.
+
+        Uses the standard predict API which routes to the container's predict endpoint.
+        Our container is configured with --container-predict-route="/analyze"
+        """
         try:
             from google.cloud import aiplatform
         except ImportError as exc:
@@ -117,10 +164,22 @@ class MedGemmaClient:
             raise ValueError("MEDGEMMA_VERTEX_ENDPOINT must be set for vertex mode")
 
         def _predict():
-            if self.vertex_project and self.vertex_location:
-                aiplatform.init(project=self.vertex_project, location=self.vertex_location)
-            endpoint = aiplatform.Endpoint(self.vertex_endpoint)
-            response = endpoint.predict(instances=[instance])
+            project = self.vertex_project
+            location = self.vertex_location
+            if project and location:
+                aiplatform.init(project=project, location=location)
+
+            # Get the endpoint
+            endpoint_id = self.vertex_endpoint
+            if "/" not in endpoint_id:
+                endpoint_id = f"projects/{project}/locations/{location}/endpoints/{endpoint_id}"
+
+            endpoint = aiplatform.Endpoint(endpoint_id)
+
+            # Use predict - Vertex AI will route to the container's predict endpoint
+            # The container receives the payload as-is
+            response = endpoint.predict(instances=[payload])
+
             if response.predictions:
                 return response.predictions[0]
             return {}
@@ -145,23 +204,40 @@ class MedGemmaClient:
         self._ensure_local_model()
 
         from PIL import Image
+        import torch
 
         images = []
         for png in png_slices:
             images.append(Image.open(io.BytesIO(png)))
 
-        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        # Build content with images first (as per HuggingFace docs)
+        content: list[dict[str, Any]] = []
         for img in images:
             content.append({"type": "image", "image": img})
+        content.append({"type": "text", "text": prompt})
 
         messages = [{"role": "user", "content": content}]
         processor = self._local_processor
         model = self._local_model
 
         def _run():
-            inputs = processor.apply_chat_template(messages, return_tensors="pt").to(model.device)
-            outputs = model.generate(**inputs, max_new_tokens=512, do_sample=False)
-            return processor.decode(outputs[0], skip_special_tokens=True)
+            # Use the correct inference pattern for AutoModelForImageTextToText
+            inputs = processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            ).to(model.device, dtype=torch.bfloat16)
+
+            input_len = inputs["input_ids"].shape[-1]
+
+            with torch.inference_mode():
+                outputs = model.generate(**inputs, max_new_tokens=2000, do_sample=False)
+                # Remove input tokens from output
+                generation = outputs[0][input_len:]
+
+            return processor.decode(generation, skip_special_tokens=True)
 
         return await asyncio.to_thread(_run)
 
@@ -169,16 +245,16 @@ class MedGemmaClient:
         if self._local_model is not None:
             return
         try:
-            from transformers import AutoModelForCausalLM, AutoProcessor
+            from transformers import AutoModelForImageTextToText, AutoProcessor
             import torch
         except ImportError as exc:
             raise RuntimeError(
-                "transformers and torch are required for MEDGEMMA_MODE=local"
+                "transformers>=4.50.0 and torch are required for MEDGEMMA_MODE=local"
             ) from exc
 
         model_id = self.model_path or "google/medgemma-1.5-4b-it"
         self._local_processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
-        self._local_model = AutoModelForCausalLM.from_pretrained(
+        self._local_model = AutoModelForImageTextToText.from_pretrained(
             model_id,
             torch_dtype=torch.bfloat16,
             device_map="auto",

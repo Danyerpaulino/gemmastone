@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Nudge, Patient, PatientInteraction
+from app.db.models import Nudge, NudgeCampaign, Patient, PatientInteraction, PreventionPlan, StoneAnalysis
 from app.services.messaging_service import MessagingService
 
 
@@ -36,6 +36,16 @@ class NudgeDispatcher:
                 nudge.response_at = now
                 continue
 
+            if not _is_contact_allowed(patient, nudge.channel):
+                nudge.status = "skipped"
+                nudge.response = f"Channel disabled in contact preferences: {nudge.channel}"
+                nudge.response_at = now
+                continue
+
+            if not _is_plan_approved(self.db, nudge):
+                # Keep nudges in scheduled state until provider approval.
+                continue
+
             if nudge.channel == "sms":
                 self.messaging.send_sms(patient.phone, nudge.message_content or "")
                 nudge.status = "sent"
@@ -61,3 +71,34 @@ class NudgeDispatcher:
 
         self.db.commit()
         return nudges
+
+
+def _is_contact_allowed(patient: Patient, channel: str) -> bool:
+    prefs = patient.contact_preferences or {}
+    if channel == "sms":
+        return bool(prefs.get("sms", True))
+    if channel == "voice":
+        return bool(prefs.get("voice", False))
+    if channel == "email":
+        return bool(prefs.get("email", False))
+    return False
+
+
+def _is_plan_approved(db: Session, nudge: Nudge) -> bool:
+    campaign = (
+        db.query(NudgeCampaign).filter(NudgeCampaign.id == nudge.campaign_id).first()
+    )
+    if not campaign or campaign.status not in {"active", "scheduled", "running"}:
+        return False
+
+    plan = db.query(PreventionPlan).filter(PreventionPlan.id == campaign.plan_id).first()
+    if not plan:
+        return False
+
+    analysis = (
+        db.query(StoneAnalysis).filter(StoneAnalysis.id == plan.analysis_id).first()
+    )
+    if not analysis:
+        return False
+
+    return bool(analysis.provider_approved)

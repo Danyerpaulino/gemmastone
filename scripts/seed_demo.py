@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -170,7 +171,13 @@ def _create_synthetic_ct(ct_dir: Path, slices: int = 8, size: int = 128) -> Path
     return ct_dir
 
 
-def run_ct_analysis(api_url: str, ct_path: Path, provider_id: str, patient_id: str) -> dict:
+def run_ct_analysis(
+    api_url: str,
+    ct_path: Path,
+    provider_id: str,
+    patient_id: str,
+    api_token: str | None = None,
+) -> dict:
     api_url = api_url.rstrip("/")
     upload_path = ct_path
     cleanup_zip = False
@@ -183,7 +190,16 @@ def run_ct_analysis(api_url: str, ct_path: Path, provider_id: str, patient_id: s
             content_type = "application/zip" if upload_path.suffix.lower() == ".zip" else "application/octet-stream"
             files = {"file": (upload_path.name, handle, content_type)}
             data = {"patient_id": patient_id, "provider_id": provider_id}
-            response = httpx.post(f"{api_url}/ct/analyze", files=files, data=data, timeout=300)
+            headers = {}
+            if api_token:
+                headers["Authorization"] = f"Bearer {api_token}"
+            response = httpx.post(
+                f"{api_url}/ct/analyze",
+                files=files,
+                data=data,
+                headers=headers,
+                timeout=300,
+            )
             if not response.is_success:
                 detail = response.text
                 raise SystemExit(
@@ -203,6 +219,7 @@ def main() -> None:
     parser.add_argument("--patient-last", default="Stone")
     parser.add_argument("--patient-email", default="demo.patient@kidneystone.ai")
     parser.add_argument("--api-url", default="http://localhost:8080/api")
+    parser.add_argument("--api-token", default=None)
     parser.add_argument(
         "--ct-path",
         help="Path to CT DICOM directory or .zip file. If omitted, a synthetic CT is generated.",
@@ -232,8 +249,15 @@ def main() -> None:
         ct_path = _create_synthetic_ct(Path(temp_dir.name) / "synthetic_ct")
         print(f"Generated synthetic CT at: {ct_path}")
 
+    api_token = args.api_token or os.getenv("API_TOKEN")
     print("Running /ct/analyze...")
-    result = run_ct_analysis(args.api_url, ct_path, ids["provider_id"], ids["patient_id"])
+    result = run_ct_analysis(
+        args.api_url,
+        ct_path,
+        ids["provider_id"],
+        ids["patient_id"],
+        api_token=api_token,
+    )
     analysis_id = result.get("analysis", {}).get("id")
     print(f"Analysis complete. analysis_id={analysis_id}")
 

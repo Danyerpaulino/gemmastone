@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyc
+*.egg-info/
 .venv/
 
 # Node
@@ -17,3 +19,6 @@ node_modules/
 
 # Other
 KIDNEYSTONE_AI_IMPLEMENTATION_PLAN.md
+The MedGemma Impact Challenge Rules.txt
+The MedGemma Impact Challenge.txt
+.claude

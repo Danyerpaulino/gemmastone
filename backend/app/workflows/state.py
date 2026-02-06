@@ -6,9 +6,13 @@ class KidneyStoneState(TypedDict, total=False):
     provider_id: str
 
     ct_scan_path: str
+    ct_scan_local_path: str
     stones_detected: list[dict]
     predicted_composition: str
     composition_confidence: float
+    stone_3d_model: bytes | None
+    total_stone_burden_mm3: float | None
+    hydronephrosis_level: str | None
 
     treatment_recommendation: str
     treatment_rationale: str

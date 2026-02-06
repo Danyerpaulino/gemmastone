@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.crud import analysis as analysis_crud
 from app.crud import prevention_plan as plan_crud
+from app.db.models import Nudge, NudgeCampaign
 from app.db.session import get_db
 from app.schemas.plan import PlanApproval, PreventionPlanCreate, PreventionPlanOut, PreventionPlanUpdate
 
@@ -54,6 +55,26 @@ def approve_plan(
             plan,
             PreventionPlanUpdate(active=False, superseded_by=updated_plan.id),
         )
+
+    campaign = (
+        db.query(NudgeCampaign).filter(NudgeCampaign.plan_id == plan.id).first()
+        if plan
+        else None
+    )
+    if campaign:
+        if payload.modifications:
+            campaign.plan_id = updated_plan.id
+        campaign.status = "active"
+        db.add(campaign)
+
+        db.query(NudgeCampaign).filter(
+            NudgeCampaign.patient_id == updated_plan.patient_id,
+            NudgeCampaign.id != campaign.id,
+        ).update({"status": "paused"}, synchronize_session=False)
+
+        db.query(Nudge).filter(
+            Nudge.campaign_id == campaign.id, Nudge.status == "pending_approval"
+        ).update({"status": "scheduled"}, synchronize_session=False)
 
     db.commit()
 

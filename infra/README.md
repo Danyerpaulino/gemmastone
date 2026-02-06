@@ -18,3 +18,12 @@ for demoing an edge workflow on a non-cloud machine.
 The mock mode keeps the workflow runnable without GPU while still demonstrating the agentic
 pipeline, nudge scheduling, and patient chat.
 Messaging is demo-only by default (`MESSAGING_MODE=mock`).
+
+## Cloud Run note
+For cloud demos, configure GCS streaming:
+- `STORAGE_MODE=gcs`
+- `GCS_BUCKET=<your-bucket>`
+- `GCS_PREFIX=ct-uploads` (optional)
+
+Signed upload flow (recommended for large CTs):
+- Allow `PUT` from the Vercel domain in the bucket CORS policy.

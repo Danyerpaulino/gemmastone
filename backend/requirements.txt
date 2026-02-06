@@ -7,10 +7,15 @@ langgraph
 langchain-core
 numpy
 pydicom
+pylibjpeg
+pylibjpeg-libjpeg
+pylibjpeg-openjpeg
 Pillow
 transformers
 torch
 google-cloud-aiplatform
+google-cloud-storage
+scikit-image
 sqlalchemy
 psycopg2-binary
 alembic

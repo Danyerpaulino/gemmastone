@@ -11,7 +11,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://app:app@localhost:5432/kidneystone"
 
-    medgemma_mode: str = "local"
+    # Default to Vertex in cloud deployments; override to "mock" or "local" for dev/edge.
+    medgemma_mode: str = "vertex"
     medgemma_endpoint: str | None = None
     medgemma_http_url: str | None = None
     medgemma_analyze_url: str | None = None
@@ -20,6 +21,12 @@ class Settings(BaseSettings):
     medgemma_vertex_endpoint: str | None = None
     medgemma_vertex_project: str | None = None
     medgemma_vertex_location: str | None = None
+
+    storage_mode: str = "auto"
+    gcs_bucket: str | None = None
+    gcs_prefix: str = "ct-uploads"
+    gcs_signed_url_ttl_seconds: int = 900
+    local_storage_root: str = "data/ct_scans"
 
     messaging_mode: str = "mock"
     messaging_api_key: str | None = None

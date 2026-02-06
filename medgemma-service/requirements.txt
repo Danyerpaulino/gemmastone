@@ -1,0 +1,17 @@
+# MedGemma Multimodal Service Dependencies
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart
+
+# ML/AI
+transformers>=4.50.0
+torch>=2.2.0
+accelerate>=0.27.0
+sentencepiece
+Pillow>=10.0.0
+
+# Hugging Face authentication (for gated models)
+huggingface_hub>=0.20.0
+
+# Health check
+pydantic>=2.0.0
