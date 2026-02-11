@@ -1050,6 +1050,7 @@ pre {
     padding: 8px 14px;
     font-size: 0.85rem;
     cursor: pointer;
+    color: var(--ink);
 }
 
 .tab.active {

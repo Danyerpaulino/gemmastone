@@ -17,7 +17,7 @@ const displayFont = Space_Grotesk({
 });
 
 export const metadata = {
-    title: "StoneXero",
+    title: "KidneyStones AI",
     description: "Voice-first kidney stone prevention platform.",
 };
 

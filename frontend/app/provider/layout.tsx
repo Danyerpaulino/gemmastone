@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-    title: "StoneXero | Provider",
-    description: "Provider workspace for StoneXero compliance workflows.",
+    title: "KidneyStones AI | Provider",
+    description: "Provider workspace for KidneyStones AI compliance workflows.",
 };
 
 const navLinks = [
@@ -24,7 +24,7 @@ export default function ProviderLayout({
                 <div className="brand">
                     <span className="brand-mark">SX</span>
                     <div>
-                        <p className="brand-title">StoneXero</p>
+                        <p className="brand-title">KidneyStones AI</p>
                         <p className="brand-subtitle">Compliance center</p>
                     </div>
                 </div>

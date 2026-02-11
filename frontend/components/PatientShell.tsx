@@ -52,7 +52,7 @@ export default function PatientShell({ children }: { children: React.ReactNode }
                     <Link href="/dashboard" className="brand">
                         <span className="brand-mark">KS</span>
                         <div>
-                            <p className="brand-title">StoneXero</p>
+                            <p className="brand-title">KidneyStones AI</p>
                             <p className="brand-subtitle">Prevention companion</p>
                         </div>
                     </Link>

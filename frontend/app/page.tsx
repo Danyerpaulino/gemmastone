@@ -5,7 +5,7 @@ export default function HomePage() {
         <main className="page">
             <header className="hero">
                 <div>
-                    <p className="eyebrow">StoneXero</p>
+                    <p className="eyebrow">KidneyStones AI</p>
                     <h1>Voice-first kidney stone prevention</h1>
                     <p className="lead">
                         The prevention agent that calls, texts, and keeps patients
