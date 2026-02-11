@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AdherenceChart from "@/components/AdherenceChart";
@@ -44,9 +44,9 @@ const formatDate = (value?: string | null) => {
 export default function ProviderPatientDetailPage({
     params,
 }: {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }) {
-    const { id } = params;
+    const { id } = use(params);
     const router = useRouter();
     const searchParams = useSearchParams();
     const initialTab = (searchParams.get("tab") || "overview") as TabId;

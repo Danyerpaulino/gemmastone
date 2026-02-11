@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { API_TOKEN, API_URL } from "@/lib/api";
@@ -19,7 +19,8 @@ const buildHeaders = () => ({
     ...(API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}),
 });
 
-export default function JoinPage({ params }: { params: { code: string } }) {
+export default function JoinPage({ params }: { params: Promise<{ code: string }> }) {
+    const { code } = use(params);
     const router = useRouter();
     const apiBase = useMemo(() => API_URL.replace(/\/$/, ""), []);
     const [provider, setProvider] = useState<ProviderReferral | null>(null);
@@ -43,7 +44,7 @@ export default function JoinPage({ params }: { params: { code: string } }) {
             setProviderError("");
             try {
                 const response = await fetch(
-                    `${apiBase}/onboarding/provider/${params.code}`,
+                    `${apiBase}/onboarding/provider/${code}`,
                     {
                         headers: buildHeaders(),
                         cache: "no-store",
@@ -76,7 +77,7 @@ export default function JoinPage({ params }: { params: { code: string } }) {
         return () => {
             isActive = false;
         };
-    }, [apiBase, params.code]);
+    }, [apiBase, code]);
 
     const setStatusMessage = (message: string, type: "idle" | "error" | "success" = "idle") => {
         setStatus(message);
@@ -93,7 +94,7 @@ export default function JoinPage({ params }: { params: { code: string } }) {
 
         try {
             setStatusMessage("Sending verification code...");
-            const response = await fetch(`${apiBase}/onboarding/join/${params.code}`, {
+            const response = await fetch(`${apiBase}/onboarding/join/${code}`, {
                 method: "POST",
                 headers: buildHeaders(),
                 body: JSON.stringify({
