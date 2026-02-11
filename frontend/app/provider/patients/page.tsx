@@ -11,7 +11,7 @@ export default async function PatientsPage() {
             <div className="card">
                 <div className="card-header">
                     <h2>Patients</h2>
-                    <Link className="text-link" href="/upload">
+                    <Link className="text-link" href="/provider/upload">
                         Run CT intake
                     </Link>
                 </div>
@@ -41,7 +41,7 @@ export default async function PatientsPage() {
                                 <span>{patient.phone || "—"}</span>
                                 <Link
                                     className="text-link"
-                                    href={`/patients/${patient.id}`}
+                                    href={`/provider/patients/${patient.id}`}
                                 >
                                     View
                                 </Link>

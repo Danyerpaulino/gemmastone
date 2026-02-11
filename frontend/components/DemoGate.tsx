@@ -95,8 +95,8 @@ export default function DemoGate({
                         <p className="eyebrow">Demo access</p>
                         <h1>Enter the shared access code</h1>
                         <p className="lead">
-                            This public demo is gated for the competition review
-                            team. Ask the project owner for the access code.
+                            This demo is gated for the review team. Ask the
+                            project owner for the access code.
                         </p>
                         <form className="auth-form" onSubmit={handleUnlock}>
                             <label>

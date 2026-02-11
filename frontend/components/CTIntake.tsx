@@ -865,8 +865,8 @@ export default function CTIntake({
                         </code>
                     </div>
                     <div className="link-stack">
-                        <Link href="/dashboard">Provider dashboard</Link>
-                        <Link href="/chat">Patient chat</Link>
+                        <Link href="/provider/dashboard">Provider dashboard</Link>
+                        <Link href="/dashboard">Patient dashboard</Link>
                     </div>
                 </div>
             </section>

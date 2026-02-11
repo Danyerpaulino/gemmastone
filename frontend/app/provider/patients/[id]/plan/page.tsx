@@ -14,7 +14,7 @@ export default async function PatientPlanPage({
             <div className="card">
                 <div className="card-header">
                     <h2>Prevention plan review</h2>
-                    <Link className="text-link" href={`/patients/${id}`}>
+                    <Link className="text-link" href={`/provider/patients/${id}`}>
                         Patient overview
                     </Link>
                 </div>

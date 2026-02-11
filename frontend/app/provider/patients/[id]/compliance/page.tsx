@@ -26,7 +26,7 @@ export default async function PatientCompliancePage({
             <div className="card">
                 <div className="card-header">
                     <h2>Compliance review</h2>
-                    <Link className="text-link" href={`/patients/${id}`}>
+                    <Link className="text-link" href={`/provider/patients/${id}`}>
                         Patient overview
                     </Link>
                 </div>
