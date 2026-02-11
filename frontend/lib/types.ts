@@ -91,11 +91,16 @@ export type StoneAnalysisList = {
     total: number;
 };
 
+export type DietaryRecommendation = {
+    category?: string;
+    [key: string]: unknown;
+};
+
 export type PreventionPlanOut = {
     id: string;
     analysis_id: string;
     patient_id: string;
-    dietary_recommendations?: Array<Record<string, unknown>>;
+    dietary_recommendations?: DietaryRecommendation[];
     fluid_intake_target_ml?: number | null;
     medications_recommended?: Array<Record<string, unknown>>;
     lifestyle_modifications?: string[];
