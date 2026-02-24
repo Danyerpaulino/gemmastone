@@ -1,8 +1,8 @@
 # KidneyStones AI: Voice-First Kidney Stone Prevention Powered by MedGemma
 
 **MedGemma Impact Challenge — Technical Overview**
-**Team:** Aaron Gore (Business/Federal Healthcare), Dr. Ilya Sobol (Urologist), Danyer Paulino (Technical Lead), 
-**Repository:** [github.com/KidneyStones AI/KidneyStones AI](https://github.com/Danyerpaulino/kidneystone-ai) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app)
+**Team:** Aaron Gore (Team Lead), Dr. Ilya Sobol (Urologist), Danyer Paulino (Technical Lead), Len Zheleznyak (Strategist)
+**Repository:** [github.com/danyerpaulino/kidneystone-ai](https://github.com/Danyerpaulino/kidneystone-ai) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app)
 
 ---
 
