@@ -12,6 +12,7 @@ from app.schemas.lab_result import (
     LabResultOut,
     LabResultUpdate,
 )
+from app.services.context_builder import enqueue_context_rebuild
 from app.services.lab_validation import validate_lab_results
 
 router = APIRouter()
@@ -47,6 +48,11 @@ async def create_lab_result(
                 urine.results if urine else None,
             )
 
+    enqueue_context_rebuild(
+        lab.patient_id,
+        "lab_result",
+        {"lab_id": str(lab.id), "result_type": lab.result_type},
+    )
     return lab
 
 
@@ -120,6 +126,11 @@ async def update_lab_result(
                 urine.results if urine else None,
             )
 
+    enqueue_context_rebuild(
+        updated.patient_id,
+        "lab_result",
+        {"lab_id": str(updated.id), "result_type": updated.result_type},
+    )
     return updated
 
 

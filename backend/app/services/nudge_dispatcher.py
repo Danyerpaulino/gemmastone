@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.models import Nudge, NudgeCampaign, Patient, PatientInteraction, PreventionPlan, StoneAnalysis
+from app.core.settings import get_settings
 from app.services.messaging_service import MessagingService
 
 
@@ -15,6 +16,7 @@ class NudgeDispatcher:
 
     def dispatch_due(self, limit: int = 50, dry_run: bool = False) -> list[Nudge]:
         now = datetime.utcnow()
+        settings = get_settings()
         nudges = (
             self.db.query(Nudge)
             .filter(Nudge.status == "scheduled", Nudge.scheduled_time <= now)
@@ -27,6 +29,12 @@ class NudgeDispatcher:
             return nudges
 
         for nudge in nudges:
+            if nudge.channel == "sms" and settings.disable_scheduled_sms:
+                nudge.status = "skipped"
+                nudge.response = "scheduled_sms_disabled"
+                nudge.response_at = now
+                continue
+
             patient = (
                 self.db.query(Patient).filter(Patient.id == nudge.patient_id).first()
             )

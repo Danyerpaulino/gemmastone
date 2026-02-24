@@ -9,6 +9,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    Time,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -26,6 +27,8 @@ class Provider(Base):
     npi = Column(String(10))
     specialty = Column(String(100))
     practice_name = Column(String(200))
+    referral_code = Column(String(20), unique=True, nullable=False)
+    qr_code_url = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -45,6 +48,15 @@ class Patient(Base):
         nullable=False,
         server_default=text("'{\"sms\": true, \"email\": true, \"voice\": false}'::jsonb"),
     )
+    phone_verified = Column(Boolean, nullable=False, server_default=text("false"))
+    auth_method = Column(String(20), server_default=text("'otp'"))
+    onboarding_completed = Column(Boolean, nullable=False, server_default=text("false"))
+    onboarding_source = Column(String(50))
+    context_version = Column(Integer, nullable=False, server_default=text("0"))
+    last_context_build = Column(DateTime(timezone=True))
+    communication_paused = Column(Boolean, nullable=False, server_default=text("false"))
+    quiet_hours_start = Column(Time)
+    quiet_hours_end = Column(Time)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -95,7 +107,7 @@ class PreventionPlan(Base):
     __tablename__ = "prevention_plans"
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
-    analysis_id = Column(UUID(as_uuid=True), ForeignKey("stone_analyses.id"), nullable=False)
+    analysis_id = Column(UUID(as_uuid=True), ForeignKey("stone_analyses.id"), nullable=True)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
     dietary_recommendations = Column(JSONB)
     fluid_intake_target_ml = Column(Integer)
@@ -165,4 +177,84 @@ class ComplianceLog(Base):
     medication_taken = Column(Boolean)
     dietary_compliance_score = Column(Float)
     notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class VoiceCall(Base):
+    __tablename__ = "voice_calls"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    vapi_call_id = Column(String(100), unique=True)
+    direction = Column(String(10), nullable=False)
+    call_type = Column(String(30), nullable=False)
+    status = Column(String(20), nullable=False, server_default=text("'initiated'"))
+    started_at = Column(DateTime(timezone=True))
+    ended_at = Column(DateTime(timezone=True))
+    duration_seconds = Column(Integer)
+    transcript = Column(Text)
+    transcript_segments = Column(JSONB)
+    summary = Column(Text)
+    context_version_used = Column(Integer)
+    escalated = Column(Boolean, nullable=False, server_default=text("false"))
+    escalation_reason = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SmsMessage(Base):
+    __tablename__ = "sms_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    telnyx_message_id = Column(String(100))
+    direction = Column(String(10), nullable=False)
+    message_type = Column(String(30))
+    content = Column(Text)
+    media_urls = Column(JSONB)
+    status = Column(String(20), server_default=text("'queued'"))
+    ai_response = Column(Text)
+    sent_at = Column(DateTime(timezone=True))
+    delivered_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PatientContext(Base):
+    __tablename__ = "patient_contexts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, unique=True)
+    context = Column(JSONB, nullable=False)
+    version = Column(Integer, nullable=False, server_default=text("1"))
+    built_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    trigger = Column(String(50))
+    processing_time_ms = Column(Integer)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContextBuild(Base):
+    __tablename__ = "context_builds"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    trigger = Column(String(50), nullable=False)
+    version = Column(Integer, nullable=False)
+    status = Column(String(20), server_default=text("'pending'"))
+    input_summary = Column(JSONB)
+    processing_time_ms = Column(Integer)
+    error_message = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScheduledAction(Base):
+    __tablename__ = "scheduled_actions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    action_type = Column(String(30), nullable=False)
+    scheduled_for = Column(DateTime(timezone=True), nullable=False)
+    recurrence = Column(String(30))
+    payload = Column(JSONB)
+    status = Column(String(20), server_default=text("'scheduled'"))
+    executed_at = Column(DateTime(timezone=True))
+    result = Column(JSONB)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

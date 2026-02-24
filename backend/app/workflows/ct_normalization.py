@@ -49,6 +49,8 @@ def normalize_ct_output(raw: Any, spacing: tuple[float, float, float]) -> tuple[
     for item in stones_raw:
         if not isinstance(item, dict):
             continue
+        # Pre-process fields that may come as dicts but should be floats/lists
+        item = _preprocess_stone_fields(item)
         stone_model = CTStone.model_validate(item)
         stone = {**item, **stone_model.model_dump(exclude_none=True)}
         normalized_stones.append(_normalize_stone_fields(stone, spacing))
@@ -60,6 +62,101 @@ def normalize_ct_output(raw: Any, spacing: tuple[float, float, float]) -> tuple[
     )
 
     return normalized_stones, normalized_output.model_dump(exclude_none=True)
+
+
+def _coords_dict_to_list(coords_dict: dict) -> list[float] | None:
+    """Convert coordinate dict to [x, y, z] list."""
+    try:
+        # Try x, y, z keys
+        if all(k in coords_dict for k in ("x", "y", "z")):
+            return [
+                float(coords_dict["x"]),
+                float(coords_dict["y"]),
+                float(coords_dict["z"]),
+            ]
+        # Try X, Y, Z keys (uppercase)
+        if all(k in coords_dict for k in ("X", "Y", "Z")):
+            return [
+                float(coords_dict["X"]),
+                float(coords_dict["Y"]),
+                float(coords_dict["Z"]),
+            ]
+        return None
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
+def _preprocess_stone_fields(stone: dict) -> dict:
+    """Convert fields that arrive as dicts to proper types before validation."""
+    result = dict(stone)
+
+    # Handle location_coords/location_coordinates as dict {"x": ..., "y": ..., "z": ...}
+    # Must be converted BEFORE Pydantic validation since CTStone expects list
+    for key in ("location_coords", "location_coordinates", "coords", "coordinates", "center_coords", "centroid"):
+        value = result.get(key)
+        if isinstance(value, dict):
+            coords = _coords_dict_to_list(value)
+            if coords:
+                result["location_coords"] = coords
+                # Remove the original dict key if it's not location_coords
+                if key != "location_coords":
+                    result.pop(key, None)
+            else:
+                # Remove invalid dict to prevent validation error
+                result.pop(key, None)
+            break
+
+    # Handle size_voxels coming as a bounding box dict
+    size_voxels = result.get("size_voxels")
+    if isinstance(size_voxels, dict):
+        # Extract bbox and compute max dimension, or remove for later normalization
+        bbox = _bbox_dict_to_list(size_voxels)
+        if bbox:
+            result["bbox_voxels"] = bbox
+        result.pop("size_voxels", None)
+
+    # Handle dimensions_voxels as a bounding box dict
+    dims_voxels = result.get("dimensions_voxels")
+    if isinstance(dims_voxels, dict):
+        bbox = _bbox_dict_to_list(dims_voxels)
+        if bbox:
+            result["bbox_voxels"] = bbox
+        result.pop("dimensions_voxels", None)
+
+    # Handle bbox_voxels as a dict
+    bbox_voxels = result.get("bbox_voxels")
+    if isinstance(bbox_voxels, dict):
+        bbox = _bbox_dict_to_list(bbox_voxels)
+        if bbox:
+            result["bbox_voxels"] = bbox
+        else:
+            result.pop("bbox_voxels", None)
+
+    return result
+
+
+def _bbox_dict_to_list(bbox_dict: dict) -> list[float] | None:
+    """Convert a bounding box dict to [x_min, y_min, z_min, x_max, y_max, z_max] list."""
+    try:
+        # Try standard min/max keys
+        if all(k in bbox_dict for k in ("x_min", "y_min", "z_min", "x_max", "y_max", "z_max")):
+            return [
+                float(bbox_dict["x_min"]),
+                float(bbox_dict["y_min"]),
+                float(bbox_dict["z_min"]),
+                float(bbox_dict["x_max"]),
+                float(bbox_dict["y_max"]),
+                float(bbox_dict["z_max"]),
+            ]
+        # Try just min/max (might be missing x/y/z prefix)
+        if all(k in bbox_dict for k in ("min", "max")):
+            min_val = bbox_dict["min"]
+            max_val = bbox_dict["max"]
+            if isinstance(min_val, (list, tuple)) and isinstance(max_val, (list, tuple)):
+                return [float(v) for v in min_val[:3]] + [float(v) for v in max_val[:3]]
+        return None
+    except (TypeError, ValueError, KeyError):
+        return None
 
 
 def _coerce_payload(raw: Any) -> dict:
@@ -104,7 +201,13 @@ def _normalize_location_coords(stone: dict) -> dict:
             value = stone[key]
             if isinstance(value, (list, tuple)):
                 stone["location_coords"] = [float(v) for v in value[:3]]
-            break
+                break
+            elif isinstance(value, dict):
+                # Handle dict-style coordinates like {"x": 150, "y": 150, "z": 100}
+                coords = _coords_dict_to_list(value)
+                if coords:
+                    stone["location_coords"] = coords
+                break
     return stone
 
 

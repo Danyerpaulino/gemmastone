@@ -18,6 +18,8 @@ class ProviderCreate(ProviderBase):
 
 class ProviderOut(ProviderBase):
     id: UUID
+    referral_code: str | None = None
+    qr_code_url: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)

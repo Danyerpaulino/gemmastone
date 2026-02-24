@@ -43,3 +43,37 @@ the `Content-Type` header.
 ## Database migrations (Alembic)
 From `backend/`:
 - `alembic upgrade head`
+
+## Redis (OTP + sessions)
+The voice agent pivot uses Redis for OTPs and session tracking:
+- `REDIS_URL` (default `redis://localhost:6379/0`)
+
+## Auth + OTP
+OTP logins issue an httpOnly JWT cookie:
+- `JWT_SECRET` (override `dev-secret` in prod)
+- `JWT_ALGORITHM` (default `HS256`)
+- `JWT_COOKIE_SECURE` (`true` for HTTPS)
+- `OTP_LENGTH` (default `6`)
+- `FRONTEND_BASE_URL` (used for QR codes, default `http://localhost:3000`)
+
+## Telnyx (SMS + SIP)
+Outbound SMS and inbound webhook handling use Telnyx:
+- `TELNYX_API_KEY`
+- `TELNYX_MESSAGING_PROFILE_ID`
+- `TELNYX_PHONE_NUMBER`
+- `TELNYX_SIP_CONNECTION_ID` (used by Vapi for voice routing)
+- `MESSAGING_MODE` (`mock` or `live`)
+
+## Vapi (Voice Agent)
+Outbound calls and webhook events use Vapi:
+- `VAPI_API_KEY`
+- `VAPI_ASSISTANT_ID`
+- `VAPI_PHONE_NUMBER_ID`
+- `VAPI_WEBHOOK_SECRET`
+
+## Scheduler (Scheduled Actions)
+Scheduled actions drive outbound calls, SMS, and background tasks. In production,
+configure Cloud Scheduler (or any cron) to call:
+- `POST /api/internal/dispatch-actions` every 5 minutes
+
+If `API_TOKEN` is set, include it as `Authorization: Bearer <token>` or `X-API-Token`.

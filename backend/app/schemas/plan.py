@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PreventionPlanBase(BaseModel):
-    analysis_id: UUID
+    analysis_id: UUID | None = None
     patient_id: UUID
     dietary_recommendations: list[dict[str, Any]] | None = None
     fluid_intake_target_ml: int | None = None

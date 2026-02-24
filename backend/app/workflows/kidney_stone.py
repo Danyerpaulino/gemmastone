@@ -1008,9 +1008,19 @@ def _mask_to_mesh(
     if mask.sum() < 10:
         return None
 
-    verts, faces, _, _ = marching_cubes(mask.astype(np.uint8), level=0.5, spacing=spacing)
+    from scipy.ndimage import gaussian_filter
+
+    # Pad the mask so marching cubes can close the surface at boundaries,
+    # then smooth to produce a clean isosurface instead of a blocky mesh.
+    pad = 3
+    padded = np.pad(mask.astype(np.float32), pad, mode="constant", constant_values=0)
+    smoothed = gaussian_filter(padded, sigma=1.0)
+    verts, faces, _, _ = marching_cubes(smoothed, level=0.4, spacing=spacing)
+
+    # Shift vertices back to account for padding, then to world coordinates.
+    pad_offset = np.array([pad * spacing[0], pad * spacing[1], pad * spacing[2]], dtype=np.float32)
     origin_mm = np.array(origin, dtype=np.float32) * np.array(spacing, dtype=np.float32)
-    verts = verts + origin_mm
+    verts = verts - pad_offset + origin_mm
     return {"vertices": verts.astype(np.float32), "faces": faces.astype(np.int32)}
 
 

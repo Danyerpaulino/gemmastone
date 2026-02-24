@@ -119,12 +119,27 @@ def _create_synthetic_ct(ct_dir: Path, slices: int = 8, size: int = 128) -> Path
     study_uid = generate_uid()
     series_uid = generate_uid()
 
+    # Create a 3D stone that spans the middle slices
+    # Stone center at (size//2, size//2, slices//2) with radius ~10% of image size
+    stone_center_z = slices // 2
+    stone_radius_xy = size // 10  # ~12 pixels for 128x128
+    stone_radius_z = max(slices // 3, 2)  # spans ~3 slices
+
     for index in range(slices):
-        pixel = np.random.normal(loc=30, scale=5, size=(size, size)).astype(np.int16)
-        rr, cc = np.ogrid[:size, :size]
-        center = size // 2 + (index - slices // 2)
-        mask = (rr - center) ** 2 + (cc - center) ** 2 <= (size // 10) ** 2
-        pixel[mask] = 1200
+        # Background: soft tissue ~30-50 HU -> raw pixel = HU + 1024 = ~1054
+        pixel = np.random.normal(loc=1054, scale=10, size=(size, size)).astype(np.int16)
+
+        # Create spherical stone mask (check if this slice intersects the stone)
+        z_dist = abs(index - stone_center_z)
+        if z_dist <= stone_radius_z:
+            # Calculate radius at this z-slice (sphere cross-section)
+            slice_radius = int(np.sqrt(max(0, stone_radius_xy**2 - (z_dist * stone_radius_xy / stone_radius_z)**2)))
+            if slice_radius > 0:
+                rr, cc = np.ogrid[:size, :size]
+                center_xy = size // 2
+                mask = (rr - center_xy) ** 2 + (cc - center_xy) ** 2 <= slice_radius ** 2
+                # Stone HU ~800-1200 -> raw pixel = HU + 1024 = ~1824-2224
+                pixel[mask] = 2024  # HU = 2024 - 1024 = 1000 (calcium oxalate range)
 
         file_meta = FileMetaDataset()
         file_meta.MediaStorageSOPClassUID = CTImageStorage

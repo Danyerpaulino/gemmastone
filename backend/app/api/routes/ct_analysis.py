@@ -13,6 +13,7 @@ from app.crud import analysis as analysis_crud
 from app.crud import lab_result as lab_crud
 from app.crud import nudge as nudge_crud
 from app.crud import prevention_plan as plan_crud
+from app.core.settings import get_settings
 from app.db.models import Patient, Provider
 from app.db.session import get_db
 from app.schemas.analysis import StoneAnalysisCreate, StoneAnalysisPublic
@@ -300,7 +301,12 @@ async def _run_analysis(
 
     campaign = None
     nudges: list = []
-    if plan and state.get("nudge_schedule"):
+    nudge_schedule = state.get("nudge_schedule") or []
+    settings = get_settings()
+    if settings.disable_scheduled_sms:
+        nudge_schedule = [item for item in nudge_schedule if item.get("channel") != "sms"]
+
+    if plan and nudge_schedule:
         campaign_payload = NudgeCampaignCreate(
             patient_id=patient_id,
             plan_id=plan.id,
@@ -308,7 +314,7 @@ async def _run_analysis(
         )
         campaign = nudge_crud.create_campaign(db, campaign_payload)
         nudge_payloads = []
-        for nudge in state.get("nudge_schedule", []):
+        for nudge in nudge_schedule:
             nudge_payloads.append(
                 NudgeCreate(
                     campaign_id=campaign.id,

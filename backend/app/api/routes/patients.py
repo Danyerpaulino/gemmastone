@@ -6,10 +6,12 @@ from app.crud import compliance as compliance_crud
 from app.crud import patient as patient_crud
 from app.crud import prevention_plan as plan_crud
 from app.db.session import get_db
+from app.db.models import SmsMessage
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.compliance import ComplianceLogList, ComplianceLogOut
 from app.schemas.patient import PatientCreate, PatientList, PatientOut
 from app.schemas.plan import PreventionPlanOut
+from app.schemas.sms import SmsMessageList, SmsMessageOut
 from app.services.patient_chat import PatientChatService
 
 router = APIRouter()
@@ -77,6 +79,35 @@ def list_compliance_logs(
     total = compliance_crud.count_compliance_logs(db, patient_id=patient_id)
     return ComplianceLogList(
         items=[ComplianceLogOut.model_validate(log) for log in logs],
+        total=total,
+    )
+
+
+@router.get("/{patient_id}/sms", response_model=SmsMessageList)
+def list_sms_messages(
+    patient_id: UUID,
+    offset: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+) -> SmsMessageList:
+    patient = patient_crud.get_patient(db, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    messages = (
+        db.query(SmsMessage)
+        .filter(SmsMessage.patient_id == patient.id)
+        .order_by(SmsMessage.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    total = (
+        db.query(SmsMessage)
+        .filter(SmsMessage.patient_id == patient.id)
+        .count()
+    )
+    return SmsMessageList(
+        items=[SmsMessageOut.model_validate(message) for message in messages],
         total=total,
     )
 

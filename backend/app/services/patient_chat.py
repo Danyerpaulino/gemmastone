@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from typing import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Patient, PatientInteraction, PreventionPlan, StoneAnalysis
+from app.db.models import Patient, PatientContext, PatientInteraction, PreventionPlan, StoneAnalysis
 from app.services.medgemma_client import MedGemmaClient
 
 
@@ -52,7 +53,15 @@ class PatientChatService:
 
         needs_escalation = _needs_escalation(message, ESCALATION_KEYWORDS)
 
-        context = _build_context(patient, plan, analysis)
+        context_doc = (
+            self.db.query(PatientContext)
+            .filter(PatientContext.patient_id == patient.id)
+            .first()
+        )
+        if context_doc:
+            context = json.dumps(context_doc.context, indent=2, ensure_ascii=True)
+        else:
+            context = _build_context(patient, plan, analysis)
         prompt = (
             f"{self.SYSTEM_PROMPT}\n\n"
             f"PATIENT CONTEXT:\n{context}\n\n"

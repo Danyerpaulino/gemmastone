@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +14,15 @@ class PatientBase(BaseModel):
     email: str | None = None
     phone: str | None = None
     contact_preferences: dict[str, Any] | None = None
+    phone_verified: bool | None = None
+    auth_method: str | None = None
+    onboarding_completed: bool | None = None
+    onboarding_source: str | None = None
+    context_version: int | None = None
+    last_context_build: datetime | None = None
+    communication_paused: bool | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
 
 
 class PatientCreate(PatientBase):

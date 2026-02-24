@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.settings import get_settings
 from app.crud import nudge as nudge_crud
 from app.crud import prevention_plan as plan_crud
 from app.db.models import NudgeCampaign, StoneAnalysis
@@ -81,36 +82,44 @@ async def refresh_analysis_with_labs(
             PreventionPlanUpdate(active=False, superseded_by=new_plan.id),
         )
 
-    campaign = nudge_crud.create_campaign(
-        db,
-        NudgeCampaignCreate(
-            patient_id=analysis.patient_id,
-            plan_id=new_plan.id,
-            status="pending_approval",
-        ),
-    )
+    settings = get_settings()
+    nudge_schedule = state.get("nudge_schedule", []) or []
+    if settings.disable_scheduled_sms:
+        nudge_schedule = [item for item in nudge_schedule if item.get("channel") != "sms"]
 
-    db.query(NudgeCampaign).filter(
-        NudgeCampaign.patient_id == analysis.patient_id,
-        NudgeCampaign.id != campaign.id,
-    ).update({"status": "paused"}, synchronize_session=False)
-    db.commit()
-
-    nudge_payloads = []
-    for nudge in state.get("nudge_schedule", []) or []:
-        nudge_payloads.append(
-            NudgeCreate(
-                campaign_id=campaign.id,
+    campaign = None
+    nudges: list = []
+    if nudge_schedule:
+        campaign = nudge_crud.create_campaign(
+            db,
+            NudgeCampaignCreate(
                 patient_id=analysis.patient_id,
-                scheduled_time=nudge["time"],
-                channel=nudge["channel"],
-                template=nudge.get("template"),
-                message_content=nudge.get("message"),
+                plan_id=new_plan.id,
                 status="pending_approval",
-            )
+            ),
         )
 
-    nudges = nudge_crud.create_nudges(db, nudge_payloads) if nudge_payloads else []
+        db.query(NudgeCampaign).filter(
+            NudgeCampaign.patient_id == analysis.patient_id,
+            NudgeCampaign.id != campaign.id,
+        ).update({"status": "paused"}, synchronize_session=False)
+        db.commit()
+
+        nudge_payloads = []
+        for nudge in nudge_schedule:
+            nudge_payloads.append(
+                NudgeCreate(
+                    campaign_id=campaign.id,
+                    patient_id=analysis.patient_id,
+                    scheduled_time=nudge["time"],
+                    channel=nudge["channel"],
+                    template=nudge.get("template"),
+                    message_content=nudge.get("message"),
+                    status="pending_approval",
+                )
+            )
+
+        nudges = nudge_crud.create_nudges(db, nudge_payloads) if nudge_payloads else []
 
     return {
         "analysis": analysis,

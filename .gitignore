@@ -10,12 +10,21 @@ __pycache__/
 node_modules/
 .next/
 
-# Env
+# Env (keep .env.example for public reference)
 .env
-.env.example
+.env.local
+frontend/.env.local
 
 # OS
 .DS_Store
+
+# Business docs (not code)
+*.pdf
+*.docx
+
+# Large data directories
+data/synthetic_ct_new/
+data/synthetic_ct_new.zip
 
 # Other
 KIDNEYSTONE_AI_IMPLEMENTATION_PLAN.md
