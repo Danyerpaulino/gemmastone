@@ -1,10 +1,10 @@
-# StoneXero
+# KidneyStone AI
 
 **Voice-first kidney stone prevention platform powered by MedGemma and LangGraph.**
 
 Built for the [MedGemma Impact Challenge](https://www.kaggle.com/competitions/med-gemma-impact-challenge) on Kaggle ($100K prize pool).
 
-> 10% of Americans will experience a kidney stone. 50% will recur within 5 years. Yet only ~30% of patients adhere to prevention protocols. StoneXero bridges this gap with an AI agent that calls patients, texts them, and gets smarter over time — while giving providers a real-time compliance dashboard.
+> 10% of Americans will experience a kidney stone. 50% will recur within 5 years. Yet only ~30% of patients adhere to prevention protocols. KidneyStone AI bridges this gap with an AI agent that calls patients, texts them, and gets smarter over time — while giving providers a real-time compliance dashboard.
 
 ## How It Works
 
