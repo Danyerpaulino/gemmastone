@@ -42,7 +42,7 @@ const rememberLatest = (payload: unknown, patientId: string, providerId: string)
 
 export default function CTIntake({
     eyebrow = "Provider portal",
-    title = "KidneyStone AI Intake",
+    title = "GemmaStone Intake",
     subtitle =
         "Upload a CT, attach labs, and generate a treatment and prevention plan in one pass.",
     hideHero = false,
@@ -627,7 +627,7 @@ export default function CTIntake({
                                         practice_name: event.target.value,
                                     }))
                                 }
-                                placeholder="KidneyStone AI Clinic"
+                                placeholder="GemmaStone Clinic"
                             />
                         </label>
                         <div className="actions">

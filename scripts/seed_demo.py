@@ -34,7 +34,7 @@ def seed_demo(
                 email=provider_email,
                 name=provider_name,
                 specialty="Urology",
-                practice_name="KidneyStone AI Clinic",
+                practice_name="GemmaStone Clinic",
             )
             db.add(provider)
             db.commit()

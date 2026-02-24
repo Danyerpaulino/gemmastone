@@ -1,8 +1,8 @@
 import PatientShell from "@/components/PatientShell";
 
 export const metadata = {
-    title: "KidneyStones AI | Patient",
-    description: "Patient prevention companion for KidneyStones AI.",
+    title: "GemmaStone | Patient",
+    description: "Patient prevention companion for GemmaStone.",
 };
 
 export default function PatientLayout({

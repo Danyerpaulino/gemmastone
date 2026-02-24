@@ -50,9 +50,9 @@ export default function PatientShell({ children }: { children: React.ReactNode }
             <header className="topbar">
                 <div className="topbar-left">
                     <Link href="/dashboard" className="brand">
-                        <span className="brand-mark">KS</span>
+                        <span className="brand-mark">GS</span>
                         <div>
-                            <p className="brand-title">KidneyStones AI</p>
+                            <p className="brand-title">GemmaStone</p>
                             <p className="brand-subtitle">Prevention companion</p>
                         </div>
                     </Link>

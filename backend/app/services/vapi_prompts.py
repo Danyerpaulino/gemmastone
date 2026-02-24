@@ -71,7 +71,7 @@ INBOUND_PROMPT = (
 )
 
 UNKNOWN_CALLER_MESSAGE = (
-    "Hi there! I'm the KidneyStone AI prevention assistant. It looks like I don't have\n"
+    "Hi there! I'm the GemmaStone prevention assistant. It looks like I don't have\n"
     "your number on file yet. If your doctor gave you a QR code or a link, please\n"
     "use that to sign up first, and I'll be able to help you with personalized\n"
     "stone prevention coaching. If you think this is an error, please contact\n"

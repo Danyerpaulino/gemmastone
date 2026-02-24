@@ -17,7 +17,7 @@ const displayFont = Space_Grotesk({
 });
 
 export const metadata = {
-    title: "KidneyStones AI",
+    title: "GemmaStone",
     description: "Voice-first kidney stone prevention platform.",
 };
 

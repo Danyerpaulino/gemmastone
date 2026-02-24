@@ -1,1 +1,1 @@
-"""KidneyStone AI backend package."""
+"""GemmaStone backend package."""

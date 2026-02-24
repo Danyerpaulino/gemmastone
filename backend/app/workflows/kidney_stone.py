@@ -15,7 +15,7 @@ Clinical references:
 - EAU Guidelines on Urolithiasis (2023)
 - Hounsfield unit thresholds based on Motley et al. (2001) and others
 
-This module is the core of the KidneyStone AI platform, orchestrating
+This module is the core of the GemmaStone platform, orchestrating
 the full patient journey from CT upload to prevention plan delivery.
 """
 from __future__ import annotations

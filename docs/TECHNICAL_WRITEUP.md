@@ -1,8 +1,8 @@
-# KidneyStone AI: Voice-First Kidney Stone Prevention Powered by MedGemma
+# GemmaStone: Voice-First Kidney Stone Prevention Powered by MedGemma
 
 **MedGemma Impact Challenge — Technical Overview**
 **Team:** Aaron Gore (Team Lead), Dr. Ilya Sobol (Urologist), Danyer Paulino (Technical Lead), Len Zheleznyak (Strategist)
-**Repository:** [github.com/danyerpaulino/kidneystone-ai](https://github.com/Danyerpaulino/kidneystone-ai) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app)
+**Repository:** [github.com/danyerpaulino/gemmastone](https://github.com/Danyerpaulino/gemmastone) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app)
 
 ---
 
@@ -10,7 +10,7 @@
 
 Kidney stones affect 1 in 10 Americans, with a 50% recurrence rate within five years. Evidence-based prevention — hydration, dietary changes, medication — can reduce recurrence by 40-60% (NNT 2.5-8), yet adherence sits at roughly 30%. Only 7% of stone patients receive a metabolic evaluation. The failure is not in medical knowledge but in patient engagement: people leave the ER, get no follow-up, and form another stone.
 
-**KidneyStone AI addresses this gap.** Instead of relying on patients to remember appointments and download apps, an AI agent proactively calls them, texts them daily reminders, and adapts its guidance using MedGemma's medical reasoning. Providers get a real-time compliance dashboard with zero setup.
+**GemmaStone addresses this gap.** Instead of relying on patients to remember appointments and download apps, an AI agent proactively calls them, texts them daily reminders, and adapts its guidance using MedGemma's medical reasoning. Providers get a real-time compliance dashboard with zero setup.
 
 ## 2. Architecture: Two-Brain Design
 
@@ -123,4 +123,4 @@ The system is designed for the real world: PHI stays in PostgreSQL (GCP BAA-cove
 
 ---
 
-*KidneyStone AI is a research prototype. Not for clinical use. All medical recommendations should be reviewed by a licensed healthcare provider.*
+*GemmaStone is a research prototype. Not for clinical use. All medical recommendations should be reviewed by a licensed healthcare provider.*
