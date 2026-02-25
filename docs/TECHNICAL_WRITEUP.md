@@ -2,7 +2,8 @@
 
 **MedGemma Impact Challenge — Technical Overview**
 **Team:** Aaron Gore (Team Lead), Dr. Ilya Sobol (Urologist), Danyer Paulino (Technical Lead), Len Zheleznyak (Strategist)
-**Repository:** [github.com/danyerpaulino/gemmastone](https://github.com/Danyerpaulino/gemmastone) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app)
+**Repository:** [github.com/danyerpaulino/gemmastone](https://github.com/Danyerpaulino/gemmastone) | **Demo:** [kidneystone-ai.vercel.app](https://kidneystone-ai.vercel.app) 
+**Access Code:** Feb2026!
 
 ---
 
